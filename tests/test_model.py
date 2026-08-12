@@ -1,4 +1,6 @@
 import numpy as np
+import pandas as pd
+import pytest
 
 from homecast.features import build_features
 from homecast.model import DEFAULT_PARAMS, evaluate, predict_price, train_final
@@ -31,3 +33,15 @@ def test_ranges_cover_data(clean_fixture):
     f = train_final(clean_fixture)
     assert f.ranges["area"][0] == clean_fixture["area"].min()
     assert f.ranges["area"][1] == clean_fixture["area"].max()
+
+def test_zero_price_rejected(clean_fixture):
+    bad = clean_fixture.copy()
+    bad.loc[bad.index[0], "price"] = 0.0
+    with pytest.raises(ValueError, match="non-positive"):
+        evaluate(bad, n_splits=3)
+
+def test_constant_price_r2_rejected(clean_fixture):
+    flat = clean_fixture.copy()
+    flat["price"] = 1.0
+    with pytest.raises(ValueError, match="identical"):
+        evaluate(flat, n_splits=3)

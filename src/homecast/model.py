@@ -20,12 +20,25 @@ DEFAULT_PARAMS = {"n_estimators": 300, "max_depth": 3, "learning_rate": 0.06,
                   "subsample": 0.9, "random_state": 7}
 
 
+def _validate_prices(df: pd.DataFrame) -> None:
+    """Prices must be strictly positive: log(price) is the model target and
+    price is the denominator of MAPE."""
+    price = df["price"].to_numpy(dtype=float)
+    if not np.all(np.isfinite(price) & (price > 0)):
+        bad = int((~(np.isfinite(price) & (price > 0))).sum())
+        raise ValueError(f"{bad} listing(s) have a non-positive or non-finite "
+                         f"price; cannot evaluate in log space")
+
+
 def _metrics(actual_cr: np.ndarray, pred_cr: np.ndarray) -> dict:
     err = pred_cr - actual_cr
+    denom = float(np.sum((actual_cr - actual_cr.mean()) ** 2))
+    if denom == 0:
+        raise ValueError("cannot compute R2: all actual prices are identical")
     return {
         "mae_lakh": float(np.mean(np.abs(err)) * 100),
         "mape_pct": float(np.mean(np.abs(err) / actual_cr) * 100),
-        "r2": float(1 - np.sum(err ** 2) / np.sum((actual_cr - actual_cr.mean()) ** 2)),
+        "r2": float(1 - np.sum(err ** 2) / denom),
     }
 
 
@@ -42,6 +55,7 @@ def _baseline_pred(train: pd.DataFrame, test: pd.DataFrame, by_sector: bool) -> 
 
 def evaluate(df: pd.DataFrame, params: dict = DEFAULT_PARAMS, n_splits: int = 5) -> dict:
     df = df.reset_index(drop=True)
+    _validate_prices(df)
     oof = {k: np.zeros(len(df)) for k in ("model", "baseline_sector", "baseline_global")}
     for tr_idx, te_idx in KFold(n_splits, shuffle=True, random_state=7).split(df):
         tr, te = df.iloc[tr_idx], df.iloc[te_idx]
