@@ -36,3 +36,14 @@ def test_comparables_same_sector_first(clean_fixture):
     c = comparables(clean_fixture, q(), k=3)
     assert len(c) == 3
     assert (c["sector"] == "sector 1").all()
+
+def test_comparables_falls_back_when_sector_unknown(clean_fixture):
+    c = comparables(clean_fixture, q(sector="sector 99"), k=3)
+    assert len(c) == 3
+    # nearest-by-area across the whole frame, since no listing is in sector 99
+    expected = (clean_fixture["area"] - 1500.0).abs().nsmallest(3).index
+    assert set(c.index) == set(expected)
+
+def test_bad_furnishing_rejected(fitted):
+    with pytest.raises(ValueError, match="furnishing"):
+        estimate(fitted, q(furnishing="gold-plated"))
