@@ -1,0 +1,26 @@
+{
+  "model": {
+    "mae_lakh": 54.370871653826036,
+    "mape_pct": 21.388963582914105,
+    "r2": 0.8055679763665511
+  },
+  "baseline_sector": {
+    "mae_lakh": 72.7867424263889,
+    "mape_pct": 26.645038915370257,
+    "r2": 0.6526771634295456
+  },
+  "baseline_global": {
+    "mae_lakh": 114.93623678055557,
+    "mape_pct": 38.07894571055494,
+    "r2": 0.2992446772151418
+  },
+  "n": 3600,
+  "n_splits": 5,
+  "params": {
+    "n_estimators": 300,
+    "max_depth": 3,
+    "learning_rate": 0.06,
+    "subsample": 0.9,
+    "random_state": 7
+  }
+}
