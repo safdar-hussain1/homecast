@@ -1,0 +1,1222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HomeCast — Gurgaon property valuation</title>
+<meta name="description" content="Describe a Gurgaon property and get a price estimate, a confidence band, and the comparable listings behind it. The model runs in the page.">
+<meta name="color-scheme" content="light dark">
+<script>try{var t=localStorage.getItem('hc-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,300..800&family=DM+Mono:wght@400;500&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" integrity="sha384-9nhczxUqK87bcKHh20fSQcTGD4qq5GhayNYSYWqwBkINBhOfQLg/P5HG5lF1urn4" crossorigin="anonymous"></script>
+<style>
+/* ── tokens ───────────────────────────────────────────────────────────── */
+:root{
+  color-scheme: light;
+  --plane:#e8ecf1; --surface:#fbfcfd; --inset:#f1f4f8; --slip:#ffffff;
+  --ink:#101418; --ink-2:#4a5560; --ink-3:#78838e;
+  --line:#d3dae1; --hair:#e5eaef; --ring:rgba(16,20,24,.10);
+  --accent:#1c5cab; --accent-soft:#e6eefa;
+  --s1:#2a78d6; --s2:#eb6834; --s1-fade:rgba(42,120,214,.28);
+  --good:#0f7a2e; --warn:#a5590a; --warn-bg:#fdf1e3;
+  --grid:rgba(16,20,24,.055);
+  --shadow:0 1px 2px rgba(16,20,24,.05), 0 12px 32px -18px rgba(16,20,24,.28);
+  --q0:#cde2fb; --q1:#b7d3f6; --q2:#9ec5f4; --q3:#6da7ec;
+  --q4:#3987e5; --q5:#256abf; --q6:#184f95; --q7:#0d366b;
+  --k0:#0f2138; --k1:#0f2138; --k2:#0f2138; --k3:#0f2138;
+  --k4:#0f2138; --k5:#f2f7fd; --k6:#f2f7fd; --k7:#f2f7fd;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme: dark;
+    --plane:#0b0f13; --surface:#151b21; --inset:#1b232b; --slip:#19222a;
+    --ink:#eef3f8; --ink-2:#a7b4c0; --ink-3:#79868f;
+    --line:#2a343d; --hair:#212a32; --ring:rgba(255,255,255,.12);
+    --accent:#7fb0ef; --accent-soft:#182636;
+    --s1:#3987e5; --s2:#d95926; --s1-fade:rgba(57,135,229,.30);
+    --good:#3fbf5c; --warn:#e0a35c; --warn-bg:#2a2118;
+    --grid:rgba(255,255,255,.045);
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 16px 40px -22px rgba(0,0,0,.9);
+    --q0:#0d366b; --q1:#184f95; --q2:#256abf; --q3:#2a78d6;
+    --q4:#3987e5; --q5:#6da7ec; --q6:#9ec5f4; --q7:#cde2fb;
+    --k0:#dbeafe; --k1:#dbeafe; --k2:#dbeafe; --k3:#f2f7fd;
+    --k4:#0a1a2e; --k5:#0a1a2e; --k6:#0a1a2e; --k7:#0a1a2e;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --plane:#0b0f13; --surface:#151b21; --inset:#1b232b; --slip:#19222a;
+  --ink:#eef3f8; --ink-2:#a7b4c0; --ink-3:#79868f;
+  --line:#2a343d; --hair:#212a32; --ring:rgba(255,255,255,.12);
+  --accent:#7fb0ef; --accent-soft:#182636;
+  --s1:#3987e5; --s2:#d95926; --s1-fade:rgba(57,135,229,.30);
+  --good:#3fbf5c; --warn:#e0a35c; --warn-bg:#2a2118;
+  --grid:rgba(255,255,255,.045);
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 16px 40px -22px rgba(0,0,0,.9);
+  --q0:#0d366b; --q1:#184f95; --q2:#256abf; --q3:#2a78d6;
+  --q4:#3987e5; --q5:#6da7ec; --q6:#9ec5f4; --q7:#cde2fb;
+  --k0:#dbeafe; --k1:#dbeafe; --k2:#dbeafe; --k3:#f2f7fd;
+  --k4:#0a1a2e; --k5:#0a1a2e; --k6:#0a1a2e; --k7:#0a1a2e;
+}
+
+/* ── base ─────────────────────────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box}
+body,h1,h2,h3,h4,p,figure,table,dl,dd{margin:0}
+html{-webkit-text-size-adjust:100%}
+body{
+  background:var(--plane); color:var(--ink);
+  font:400 16px/1.6 "Public Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  overflow-x:hidden;
+}
+img,canvas{max-width:100%}
+a{color:var(--accent); text-underline-offset:3px; text-decoration-thickness:1px}
+a:hover{text-decoration-thickness:2px}
+:focus-visible{outline:2px solid var(--s1); outline-offset:2px; border-radius:3px}
+.wrap{width:100%; max-width:1180px; margin-inline:auto; padding-inline:clamp(16px,3.4vw,32px)}
+.mono{font-family:"DM Mono", ui-monospace, SFMono-Regular, Menlo, monospace}
+.num{font-variant-numeric:tabular-nums}
+.skip{position:absolute; left:-9999px; top:0; background:var(--surface); padding:10px 14px; z-index:60}
+.skip:focus{left:12px; top:12px}
+
+.eyebrow{
+  font-family:"DM Mono", ui-monospace, monospace; font-size:11.5px; font-weight:500;
+  letter-spacing:.13em; text-transform:uppercase; color:var(--ink-3);
+}
+.display{
+  font-family:"Bricolage Grotesque", "Public Sans", sans-serif;
+  font-variation-settings:"wdth" 88, "wght" 760, "opsz" 48;
+  letter-spacing:-.022em; line-height:1.0;
+}
+h2.display{font-size:clamp(1.5rem,2.6vw,2.05rem); font-variation-settings:"wdth" 90,"wght" 720,"opsz" 32}
+h3{font-size:1rem; font-weight:600; line-height:1.35}
+.lede{color:var(--ink-2); max-width:66ch}
+
+/* ── top bar ──────────────────────────────────────────────────────────── */
+.topbar{
+  position:sticky; top:0; z-index:40; background:color-mix(in srgb, var(--plane) 86%, transparent);
+  backdrop-filter:saturate(140%) blur(10px); border-bottom:1px solid var(--hair);
+}
+.topbar .wrap{display:flex; align-items:center; gap:18px; min-height:58px; flex-wrap:wrap; padding-block:9px}
+.brand{display:flex; align-items:baseline; gap:9px; font-weight:700; letter-spacing:-.02em; font-size:17px}
+.brand .dot{width:9px; height:9px; border-radius:2px; background:var(--s1); align-self:center}
+.brand span{font-family:"DM Mono",monospace; font-size:11px; font-weight:400; letter-spacing:.1em;
+  text-transform:uppercase; color:var(--ink-3)}
+.cities{display:flex; align-items:center; gap:6px; margin-left:auto; flex-wrap:wrap}
+.cities .lab{font-family:"DM Mono",monospace; font-size:11px; letter-spacing:.1em;
+  text-transform:uppercase; color:var(--ink-3); margin-right:2px}
+.city{
+  font:500 13px/1 "Public Sans",sans-serif; padding:7px 12px; border-radius:999px; cursor:pointer;
+  border:1px solid var(--line); background:var(--surface); color:var(--ink-2);
+}
+.city[aria-pressed="true"]{background:var(--ink); border-color:var(--ink); color:var(--plane)}
+.city[disabled]{cursor:not-allowed; opacity:.55; background:transparent; border-style:dashed}
+.city[disabled]::after{content:" · soon"; color:var(--ink-3); font-size:11px}
+.tbtn{
+  display:inline-flex; align-items:center; gap:7px; border:1px solid var(--line); background:var(--surface);
+  color:var(--ink-2); border-radius:999px; padding:7px 12px; cursor:pointer;
+  font:500 13px/1 "Public Sans",sans-serif;
+}
+.tbtn svg{width:14px; height:14px}
+.tbtn .i-dark{display:none}
+:root[data-theme="dark"] .tbtn .i-dark{display:block}
+:root[data-theme="dark"] .tbtn .i-light{display:none}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]) .tbtn .i-dark{display:block}
+  :root:not([data-theme="light"]) .tbtn .i-light{display:none}
+}
+
+/* ── sections ─────────────────────────────────────────────────────────── */
+section{padding-block:clamp(38px,5vw,64px)}
+#estimate{padding-top:clamp(20px,2.6vw,30px); position:relative; overflow:hidden}
+#estimate::before{
+  content:""; position:absolute; inset:0; pointer-events:none;
+  background-image:linear-gradient(var(--grid) 1px, transparent 1px),
+                   linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size:30px 30px; background-position:center top;
+  -webkit-mask-image:linear-gradient(to bottom, #000 0%, transparent 78%);
+  mask-image:linear-gradient(to bottom, #000 0%, transparent 78%);
+}
+#estimate > .wrap{position:relative}
+.sec-head{display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; margin-bottom:6px}
+.sec-head .eyebrow{padding-top:4px}
+.sec-note{color:var(--ink-2); max-width:72ch; margin-bottom:22px; font-size:15px}
+.rule{height:1px; background:var(--line); border:0; margin:0}
+
+/* ── hero + estimator ─────────────────────────────────────────────────── */
+.hero-head{max-width:672px; margin-bottom:22px}
+h1.display{font-size:clamp(2.05rem,4.7vw,3.2rem); margin:10px 0 12px}
+h1 .hl{color:var(--s1)}
+.hero-head p{color:var(--ink-2); font-size:clamp(15px,1.3vw,16.5px); max-width:58ch}
+
+.estimator{display:grid; grid-template-columns:minmax(0,1.08fr) minmax(340px,.92fr); gap:26px; align-items:start}
+.panel{background:var(--surface); border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow)}
+.form{padding:20px 20px 22px}
+.form-grid{display:grid; grid-template-columns:repeat(6,1fr); gap:14px 14px}
+.f{display:flex; flex-direction:column; gap:6px; min-width:0}
+.f-2{grid-column:span 2} .f-3{grid-column:span 3} .f-4{grid-column:span 4} .f-6{grid-column:span 6}
+.f > label, .f > .flabel{
+  font-family:"DM Mono",monospace; font-size:11px; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--ink-3); display:flex; justify-content:space-between; align-items:baseline; gap:8px;
+}
+.f > label .val{color:var(--ink); font-weight:500; letter-spacing:0; text-transform:none; font-size:12.5px}
+select,input[type="number"]{
+  width:100%; font:400 15px/1.2 "Public Sans",sans-serif; color:var(--ink);
+  background:var(--inset); border:1px solid var(--line); border-radius:9px; padding:10px 11px;
+  appearance:none; -webkit-appearance:none;
+}
+select{
+  background-image:linear-gradient(45deg,transparent 50%,var(--ink-3) 50%),
+                   linear-gradient(135deg,var(--ink-3) 50%,transparent 50%);
+  background-position:calc(100% - 17px) 51%, calc(100% - 12px) 51%;
+  background-size:5px 5px,5px 5px; background-repeat:no-repeat; padding-right:32px;
+}
+input[type="number"]{font-variant-numeric:tabular-nums}
+.seg{display:flex; background:var(--inset); border:1px solid var(--line); border-radius:9px; padding:3px; gap:3px}
+.seg button{
+  flex:1; font:500 14px/1 "Public Sans",sans-serif; padding:9px 6px; border:0; border-radius:6px;
+  background:transparent; color:var(--ink-2); cursor:pointer;
+}
+.seg button[aria-pressed="true"]{background:var(--surface); color:var(--ink); box-shadow:0 1px 2px var(--ring)}
+input[type="range"]{
+  -webkit-appearance:none; appearance:none; width:100%; height:22px; background:transparent; cursor:pointer;
+}
+input[type="range"]::-webkit-slider-runnable-track{height:4px; border-radius:99px; background:var(--line)}
+input[type="range"]::-webkit-slider-thumb{
+  -webkit-appearance:none; width:17px; height:17px; border-radius:50%; background:var(--s1);
+  border:2.5px solid var(--surface); box-shadow:0 0 0 1px var(--ring); margin-top:-6.5px;
+}
+input[type="range"]::-moz-range-track{height:4px; border-radius:99px; background:var(--line)}
+input[type="range"]::-moz-range-thumb{width:14px; height:14px; border:2.5px solid var(--surface); border-radius:50%; background:var(--s1)}
+.scale{display:flex; justify-content:space-between; font-family:"DM Mono",monospace; font-size:10.5px; color:var(--ink-3); margin-top:-4px}
+.area-row{display:grid; grid-template-columns:118px 1fr; gap:12px; align-items:center}
+.warn{
+  display:none; gap:9px; align-items:flex-start; margin-top:12px; padding:10px 12px; border-radius:9px;
+  background:var(--warn-bg); color:var(--warn); font-size:13.5px; line-height:1.45; border:1px solid currentColor;
+}
+.warn.on{display:flex}
+.warn b{font-weight:600}
+.warn .ic{flex:none; font-weight:700; font-family:"DM Mono",monospace}
+
+/* ── the valuation slip ───────────────────────────────────────────────── */
+.slip{
+  background:var(--slip); border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow);
+  position:relative; overflow:hidden;
+}
+.slip-top{padding:16px 20px 4px; display:flex; justify-content:space-between; align-items:baseline; gap:10px}
+.slip-top .t{font-family:"DM Mono",monospace; font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-3)}
+.slip-top .t b{color:var(--ink); font-weight:500}
+.slip-spec{padding:2px 20px 0; font-family:"DM Mono",monospace; font-size:12px; color:var(--ink-2); line-height:1.7}
+.slip-body{padding:14px 20px 18px}
+.figure{
+  font:700 clamp(2.5rem,5.6vw,3.75rem)/1 "Public Sans",sans-serif; letter-spacing:-.032em;
+  display:flex; align-items:baseline; gap:8px; transition:opacity .16s ease, transform .16s ease;
+}
+.figure .cur{font-size:.52em; font-weight:600; color:var(--ink-2)}
+.figure .unit{font-size:.32em; font-weight:600; letter-spacing:.04em; color:var(--ink-3); text-transform:uppercase}
+.figure.flash{opacity:.35; transform:translateY(2px)}
+.fig-sub{color:var(--ink-2); font-size:13.5px; margin-top:8px}
+
+.ruler{margin-top:20px}
+.ruler .track{
+  position:relative; height:10px; border-radius:99px; background:var(--inset);
+  border:1px solid var(--line); overflow:visible;
+}
+.ruler .fill{position:absolute; inset:0 8% 0 8%; border-radius:99px; background:var(--s1-fade)}
+.ruler .pin{position:absolute; top:50%; translate:-50% -50%}
+.ruler .pin.model{width:16px; height:16px; border-radius:50%; background:var(--s1); border:2.5px solid var(--slip); box-shadow:0 0 0 1px var(--ring)}
+.ruler .pin.rule{width:4px; height:22px; border-radius:2px; background:var(--s2); box-shadow:0 0 0 2px var(--slip)}
+.ruler .ends{display:flex; justify-content:space-between; margin-top:9px; font-family:"DM Mono",monospace; font-size:11.5px; color:var(--ink-2)}
+.ruler .ends span:last-child{text-align:right}
+.legend{display:flex; flex-wrap:wrap; gap:6px 16px; margin-top:12px; font-size:12.5px; color:var(--ink-2)}
+.legend i{display:inline-block; vertical-align:middle; margin-right:7px}
+.legend .k-model{width:10px; height:10px; border-radius:50%; background:var(--s1)}
+.legend .k-rule{width:4px; height:12px; border-radius:2px; background:var(--s2)}
+
+.perf{position:relative; height:1px; margin:20px 0 0;
+  background:repeating-linear-gradient(90deg,var(--line) 0 5px,transparent 5px 11px)}
+.perf::before,.perf::after{
+  content:""; position:absolute; top:50%; width:14px; height:14px; border-radius:50%;
+  background:var(--plane); border:1px solid var(--line); translate:0 -50%;
+}
+.perf::before{left:-8px} .perf::after{right:-8px}
+.slip-foot{padding:16px 20px 18px}
+.kv{display:grid; grid-template-columns:1fr auto; gap:7px 14px; align-items:baseline; font-size:13.5px}
+.kv dt{color:var(--ink-2)}
+.kv dt small{display:block; font-family:"DM Mono",monospace; font-size:11px; color:var(--ink-3); line-height:1.5}
+.kv dd{font-weight:600; font-variant-numeric:tabular-nums; text-align:right}
+.kv dd.rulev{color:var(--s2)}
+.ref{
+  margin-top:14px; padding-top:12px; border-top:1px dashed var(--line);
+  font-family:"DM Mono",monospace; font-size:11px; color:var(--ink-3); word-break:break-all;
+}
+.ref b{color:var(--ink-2); font-weight:500}
+
+/* ── generic cards / charts ───────────────────────────────────────────── */
+.cards{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px}
+.card{background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:18px 18px 14px; min-width:0}
+.card.wide{grid-column:1/-1}
+.card h3{margin-bottom:2px}
+.card .sub{font-family:"DM Mono",monospace; font-size:11.5px; color:var(--ink-3); margin-bottom:12px; line-height:1.5}
+.chartbox{position:relative; height:290px}
+.card.wide .chartbox{height:330px}
+.scrollx{overflow-x:auto; overscroll-behavior-x:contain; padding-bottom:4px}
+.scrollx .inner{min-width:1080px}
+
+/* ── comparables ──────────────────────────────────────────────────────── */
+table{border-collapse:collapse; width:100%; font-size:14px}
+th,td{text-align:right; padding:10px 12px; border-bottom:1px solid var(--hair); white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+thead th{
+  font-family:"DM Mono",monospace; font-size:10.5px; letter-spacing:.09em; text-transform:uppercase;
+  color:var(--ink-3); font-weight:500; border-bottom:1px solid var(--line);
+}
+tbody td{font-variant-numeric:tabular-nums}
+tbody tr:last-child td{border-bottom:0}
+.tag{
+  display:inline-block; font-family:"DM Mono",monospace; font-size:10.5px; letter-spacing:.06em;
+  text-transform:uppercase; padding:2px 7px; border-radius:99px; border:1px solid var(--line); color:var(--ink-2);
+}
+.note{font-size:13px; color:var(--ink-3); margin-top:12px}
+
+/* ── sector atlas grid ────────────────────────────────────────────────── */
+.atlas{background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:18px}
+.tiles{display:grid; grid-template-columns:repeat(auto-fill,minmax(62px,1fr)); gap:5px}
+.tile{
+  position:relative; aspect-ratio:1; border-radius:4px; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:1px; cursor:default; border:0; padding:0;
+  font-family:"DM Mono",monospace; font-size:12px; font-weight:500;
+  transition:transform .12s ease, box-shadow .12s ease;
+}
+.tile em{font-style:normal; font-size:9.5px; opacity:.85; letter-spacing:.02em}
+.tile:hover,.tile:focus-visible{transform:scale(1.13); z-index:3; box-shadow:0 6px 18px -6px rgba(0,0,0,.45)}
+.tile[data-s="0"]{background:var(--q0); color:var(--k0)}
+.tile[data-s="1"]{background:var(--q1); color:var(--k1)}
+.tile[data-s="2"]{background:var(--q2); color:var(--k2)}
+.tile[data-s="3"]{background:var(--q3); color:var(--k3)}
+.tile[data-s="4"]{background:var(--q4); color:var(--k4)}
+.tile[data-s="5"]{background:var(--q5); color:var(--k5)}
+.tile[data-s="6"]{background:var(--q6); color:var(--k6)}
+.tile[data-s="7"]{background:var(--q7); color:var(--k7)}
+.tile.sel{box-shadow:0 0 0 2px var(--surface), 0 0 0 4px var(--ink)}
+.ramp-legend{display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-top:16px; font-size:12.5px; color:var(--ink-2)}
+.ramp{display:flex; height:11px; width:200px; border-radius:3px; overflow:hidden; border:1px solid var(--ring)}
+.ramp i{flex:1}
+.ramp i:nth-child(1){background:var(--q0)} .ramp i:nth-child(2){background:var(--q1)}
+.ramp i:nth-child(3){background:var(--q2)} .ramp i:nth-child(4){background:var(--q3)}
+.ramp i:nth-child(5){background:var(--q4)} .ramp i:nth-child(6){background:var(--q5)}
+.ramp i:nth-child(7){background:var(--q6)} .ramp i:nth-child(8){background:var(--q7)}
+.tip{
+  position:fixed; z-index:50; pointer-events:none; opacity:0; transition:opacity .1s;
+  background:var(--ink); color:var(--plane); padding:9px 11px; border-radius:7px; max-width:240px;
+  font-family:"DM Mono",monospace; font-size:11.5px; line-height:1.6;
+}
+.tip b{color:#9ec5f4; font-weight:500}
+details{margin-top:16px; border-top:1px solid var(--hair); padding-top:12px}
+summary{cursor:pointer; font-size:13.5px; color:var(--ink-2); font-weight:500}
+summary::marker{color:var(--ink-3)}
+details .scrolly{max-height:320px; overflow:auto; margin-top:10px; border:1px solid var(--hair); border-radius:9px}
+details thead th{position:sticky; top:0; background:var(--surface)}
+
+/* ── findings ─────────────────────────────────────────────────────────── */
+.findings{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; margin-top:18px}
+.finding{background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:18px}
+.finding .eyebrow{color:var(--s1)}
+.finding h3{margin:8px 0 7px}
+.finding p{font-size:14.5px; color:var(--ink-2)}
+.finding p + p{margin-top:9px}
+.finding b{color:var(--ink); font-weight:600; font-variant-numeric:tabular-nums}
+
+/* ── model card ───────────────────────────────────────────────────────── */
+.tiles-stat{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px; margin-bottom:18px}
+.stat{background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:18px}
+.stat .k{font-family:"DM Mono",monospace; font-size:11px; letter-spacing:.11em; text-transform:uppercase; color:var(--ink-3)}
+.stat .v{font:700 clamp(1.8rem,3.4vw,2.4rem)/1.05 "Public Sans",sans-serif; letter-spacing:-.025em; margin-top:9px}
+.stat .v small{font-size:.42em; font-weight:600; color:var(--ink-3); letter-spacing:0}
+.stat .d{margin-top:9px; font-size:13px; color:var(--good); font-weight:500}
+.stat .d span{color:var(--ink-3); font-weight:400}
+.metrics-table td:first-child{white-space:normal}
+.metrics-table tbody tr.me td{background:var(--accent-soft)}
+.metrics-table tbody tr.me td:first-child{font-weight:600}
+.metrics-table td small{display:block; font-family:"DM Mono",monospace; font-size:11px; color:var(--ink-3)}
+
+/* ── methodology ──────────────────────────────────────────────────────── */
+.steps{counter-reset:st; display:grid; grid-template-columns:repeat(auto-fit,minmax(238px,1fr)); gap:1px;
+  background:var(--line); border:1px solid var(--line); border-radius:14px; overflow:hidden}
+@media (min-width:760px){ .steps{grid-template-columns:repeat(3,minmax(0,1fr))} }
+.step{background:var(--surface); padding:18px}
+.step::before{
+  counter-increment:st; content:counter(st,decimal-leading-zero);
+  font-family:"DM Mono",monospace; font-size:11.5px; color:var(--s1); letter-spacing:.08em;
+}
+.step h3{margin:7px 0 6px; font-size:15px}
+.step p{font-size:13.5px; color:var(--ink-2)}
+.step code{font-family:"DM Mono",monospace; font-size:12px; color:var(--ink)}
+
+/* ── footer ───────────────────────────────────────────────────────────── */
+footer{border-top:1px solid var(--line); margin-top:40px}
+footer .wrap{display:flex; gap:14px 28px; flex-wrap:wrap; justify-content:space-between;
+  padding-block:26px 44px; font-size:13.5px; color:var(--ink-2)}
+footer .mono{font-size:12px; color:var(--ink-3)}
+
+/* ── responsive ───────────────────────────────────────────────────────── */
+@media (max-width:1000px){
+  .estimator{grid-template-columns:minmax(0,1fr)}
+  .cards,.findings{grid-template-columns:minmax(0,1fr)}
+  .tiles-stat{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media (max-width:640px){
+  .form-grid{grid-template-columns:repeat(2,1fr)}
+  .f-3{grid-column:span 2} .f-2{grid-column:span 1}
+  .f-4{grid-column:span 2} .f-6{grid-column:span 2}
+  .tiles-stat{grid-template-columns:minmax(0,1fr)}
+  .area-row{grid-template-columns:100px 1fr}
+  .tiles{grid-template-columns:repeat(auto-fill,minmax(54px,1fr))}
+  .chartbox,.card.wide .chartbox{height:250px}
+  .cities{margin-left:0; width:100%}
+}
+@media (prefers-reduced-motion:reduce){
+  *{transition:none !important; animation:none !important; scroll-behavior:auto !important}
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#estimate">Skip to the estimator</a>
+
+<header class="topbar">
+  <div class="wrap">
+    <div class="brand">HomeCast<span class="dot" aria-hidden="true"></span><span>price intelligence</span></div>
+    <div class="cities" role="group" aria-label="City">
+      <span class="lab">City</span>
+      <button class="city" type="button" aria-pressed="true">Gurgaon</button>
+      <button class="city" type="button" disabled>Bengaluru</button>
+      <button class="city" type="button" disabled>Hyderabad</button>
+      <button class="city" type="button" disabled>Mumbai</button>
+    </div>
+    <button class="tbtn" type="button" id="themeBtn" aria-label="Switch colour theme">
+      <svg class="i-light" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.6M12 18.9v2.6M2.5 12h2.6M18.9 12h2.6M5.2 5.2l1.9 1.9M16.9 16.9l1.9 1.9M18.8 5.2l-1.9 1.9M7.1 16.9l-1.9 1.9"/></svg>
+      <svg class="i-dark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/></svg>
+      <span id="themeLabel">Dark</span>
+    </button>
+  </div>
+</header>
+
+<main>
+
+<!-- ══ 1. hero + estimator ═══════════════════════════════════════════════ -->
+<section id="estimate">
+  <div class="wrap">
+    <div class="hero-head">
+      <p class="eyebrow">Gurgaon · 3,600 cleaned listings · the model runs in this page</p>
+      <h1 class="display">Agents quote <span class="hl">₹/sq.ft.</span><br>HomeCast quotes a price.</h1>
+      <p>Describe a property and it is priced right here: all 300 trees ship with the page, so your inputs
+         never leave the browser. You get the estimate, the ₹/sq.ft. rule of thumb it is benchmarked against,
+         and an honest range around it.</p>
+    </div>
+
+    <div class="estimator">
+      <!-- inputs -->
+      <form class="panel form" id="form" autocomplete="off">
+        <div class="form-grid">
+          <div class="f f-3">
+            <label for="i-sector">Sector</label>
+            <select id="i-sector"></select>
+          </div>
+          <div class="f f-3">
+            <span class="flabel" id="lbl-type">Property type</span>
+            <div class="seg" id="i-type" role="group" aria-labelledby="lbl-type">
+              <button type="button" data-v="flat" aria-pressed="true">Flat</button>
+              <button type="button" data-v="house" aria-pressed="false">House</button>
+            </div>
+          </div>
+
+          <div class="f f-2">
+            <label for="i-bhk">Bedrooms</label>
+            <select id="i-bhk"></select>
+          </div>
+          <div class="f f-2">
+            <label for="i-bath">Bathrooms</label>
+            <select id="i-bath"></select>
+          </div>
+          <div class="f f-2">
+            <label for="i-age">Age</label>
+            <select id="i-age">
+              <option value="">Not specified</option>
+            </select>
+          </div>
+
+          <div class="f f-6">
+            <label for="i-area">Built-up area <span class="val"><span id="v-area">1,800</span> sq.ft.</span></label>
+            <div class="area-row">
+              <input type="number" id="i-area" value="1800" step="10" inputmode="numeric" aria-describedby="areaWarn">
+              <input type="range" id="i-area-r" value="1800" step="10" aria-label="Built-up area slider">
+            </div>
+            <div class="scale"><span id="area-lo">—</span><span id="area-hi">—</span></div>
+          </div>
+
+          <div class="f f-2">
+            <label for="i-furn">Furnishing</label>
+            <select id="i-furn"></select>
+          </div>
+          <div class="f f-4">
+            <label for="i-lux">Amenity score <span class="val"><span id="v-lux">60</span> <span id="v-luxword">mid</span></span></label>
+            <input type="range" id="i-lux" value="60" step="1">
+            <div class="scale"><span>0 · bare</span><span id="lux-hi">174 · loaded</span></div>
+          </div>
+        </div>
+
+        <p class="warn" id="areaWarn" role="status"><span class="ic" aria-hidden="true">!</span><span id="areaWarnText"></span></p>
+      </form>
+
+      <!-- the valuation slip -->
+      <div class="slip" id="slip">
+        <div class="slip-top">
+          <span class="t">Valuation slip</span>
+          <span class="t">Gurgaon · <b>GBR&nbsp;300</b></span>
+        </div>
+        <p class="slip-spec mono" id="slipSpec">—</p>
+        <div class="slip-body">
+          <p class="eyebrow">Estimated price</p>
+          <p class="figure" id="figure" role="status" aria-live="polite">
+            <span class="cur">₹</span><span id="figVal">—</span><span class="unit">Cr</span>
+          </p>
+          <p class="fig-sub">The band below is the model's 10th-to-90th-percentile error, so eight out of ten
+             listings land inside it.</p>
+
+          <div class="ruler">
+            <div class="track" id="rulerTrack">
+              <div class="fill"></div>
+              <span class="pin rule" id="pinRule" title="₹/sq.ft. rule of thumb"></span>
+              <span class="pin model" id="pinModel" title="Model estimate"></span>
+            </div>
+            <div class="ends"><span id="bandLo">—</span><span id="bandHi">—</span></div>
+            <div class="legend">
+              <span><i class="k-model"></i>Model estimate</span>
+              <span><i class="k-rule"></i><span id="ruleLegend">₹/sq.ft. rule of thumb</span></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="perf" aria-hidden="true"></div>
+
+        <div class="slip-foot">
+          <dl class="kv">
+            <dt>₹/sq.ft. rule of thumb<small id="ruleWork">—</small></dt>
+            <dd class="rulev" id="ruleVal">—</dd>
+            <dt>Model minus rule</dt>
+            <dd id="diffVal">—</dd>
+            <dt>Model implied ₹/sq.ft.</dt>
+            <dd id="impliedPpsf">—</dd>
+          </dl>
+          <p class="ref"><b>ref</b> <span id="refCode">—</span></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ 2. comparables ════════════════════════════════════════════════════ -->
+<section id="comparables">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">Evidence</span><h2 class="display">What actually sold near this size</h2></div>
+    <p class="sec-note">The five listings closest in size to your query, drawn from a 400-listing sample of the cleaned
+       dataset that ships with the page. These are real asking prices, not model output — the estimate should sit among them.</p>
+    <div class="card wide">
+      <div class="scrollx">
+        <table id="compTable">
+          <thead><tr><th>Sector</th><th>Type</th><th>BHK</th><th>Area (sq.ft.)</th><th>Price</th><th>₹ / sq.ft.</th><th>Size gap</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p class="note" id="compNote"></p>
+    </div>
+  </div>
+</section>
+
+<!-- ══ 3. market atlas ═══════════════════════════════════════════════════ -->
+<section id="atlas">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">Market atlas</span><h2 class="display">Gurgaon, sector by sector</h2></div>
+    <p class="sec-note">Gurgaon is laid out as a numbered grid, so here is its market in the same shape. Each tile is a sector
+       with at least 30 listings, shaded by median ₹/sq.ft. — the single location number the model sees. Your selected sector
+       is outlined.</p>
+
+    <div class="atlas">
+      <div class="tiles" id="tiles" role="list" aria-label="Sectors shaded by median price per square foot"></div>
+      <div class="ramp-legend">
+        <span class="mono" id="rampLo">—</span>
+        <span class="ramp" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+        <span class="mono" id="rampHi">—</span>
+        <span style="color:var(--ink-3)">median ₹/sq.ft. · 8 equal-count steps</span>
+        <span style="margin-left:auto; color:var(--ink-3)" id="atlasCount">—</span>
+      </div>
+      <details>
+        <summary>Show the atlas as a table</summary>
+        <div class="scrolly">
+          <table id="sectorTable">
+            <thead><tr><th>Sector</th><th>Listings</th><th>Median price</th><th>Median ₹/sq.ft.</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </details>
+    </div>
+
+    <div class="cards" style="margin-top:18px">
+      <div class="card wide">
+        <h3>Sector price ladder</h3>
+        <p class="sub">median listing price · ₹ crore · every sector with ≥30 listings · your selection is highlighted</p>
+        <div class="scrollx"><div class="inner"><div class="chartbox"><canvas id="cLadder" role="img" aria-label="Bar chart of median listing price for each Gurgaon sector with at least thirty listings"></canvas></div></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ 4. findings ═══════════════════════════════════════════════════════ -->
+<section id="findings">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">Findings</span><h2 class="display">Four things the data insists on</h2></div>
+    <p class="sec-note">Everything here comes out of the same 3,600 cleaned listings the model is trained on.</p>
+
+    <div class="cards">
+      <div class="card wide">
+        <h3>Two markets wearing one city's name</h3>
+        <p class="sub">400 sampled listings · price (₹ crore) against built-up area (sq.ft.)</p>
+        <div class="chartbox"><canvas id="cScatter" role="img" aria-label="Scatter plot of listing price against built-up area, split by flats and houses"></canvas></div>
+      </div>
+    </div>
+
+    <div class="findings">
+      <div class="finding">
+        <p class="eyebrow">Composition</p>
+        <h3>Flats and houses barely share a price scale</h3>
+        <p>The cleaned dataset holds <b>2,799 flats</b> and <b>801 houses</b>. Median flat: <b>₹1.39 Cr</b>.
+           Median house: <b>₹4.25 Cr</b> — about <b>3.1×</b> more. That gap is why <em>is_house</em> earns
+           8.5% of the model's importance despite being a single 0/1 flag.</p>
+      </div>
+      <div class="finding">
+        <p class="eyebrow">Location</p>
+        <h3>Location is the second lever, not the first</h3>
+        <p>Median prices across the 45 well-covered sectors run from <b>₹0.41 Cr</b> to <b>₹12.5 Cr</b> — a
+           <b>30×</b> spread end to end. Yet the sector's ₹/sq.ft. carries <b>19.5%</b> of the model's importance against
+           area's <b>53.7%</b>. Where you buy sets the rate; how much you buy sets the bill.</p>
+      </div>
+      <div class="finding">
+        <p class="eyebrow">Simpson's paradox</p>
+        <h3>Old stock looks priciest until you split it</h3>
+        <p>Rank ₹/sq.ft. by age across all listings and <b>Old Property</b> tops the table. Split by type and it
+           inverts: <b>58%</b> of old listings are houses, and houses sit at <b>₹20,000/sq.ft.</b> against
+           <b>₹8,367</b> for flats.</p>
+        <p>Within flats alone, the oldest stock is <b>₹8,886/sq.ft.</b> — below under-construction at
+           <b>₹9,502</b>. The age effect in the aggregate was property type in disguise.</p>
+      </div>
+      <div class="finding">
+        <p class="eyebrow">Baselines</p>
+        <h3>The rule of thumb gets two-thirds of the way</h3>
+        <p>Pricing by sector-median ₹/sq.ft. × area explains <b>65.3%</b> of the variance on its own. A flat
+           city-wide ₹/sq.ft. explains only <b>29.9%</b>. The model reaches <b>80.6%</b> — the remaining lift
+           comes from size, type and fit-out, not from knowing the sector better.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ 5. model card ═════════════════════════════════════════════════════ -->
+<section id="model">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">Model card</span><h2 class="display">How good is the number?</h2></div>
+    <p class="sec-note">Every figure below is out-of-fold from 5-fold cross-validation on all 3,600 listings. The sector
+       ₹/sq.ft. encoding is re-learned inside each training fold, so no fold ever sees its own test prices.</p>
+
+    <div class="tiles-stat">
+      <div class="stat"><p class="k">Mean absolute error</p><p class="v" id="m-mae">—<small> lakh</small></p><p class="d" id="d-mae">—</p></div>
+      <div class="stat"><p class="k">Mean absolute % error</p><p class="v" id="m-mape">—<small>%</small></p><p class="d" id="d-mape">—</p></div>
+      <div class="stat"><p class="k">R² on price</p><p class="v" id="m-r2">—</p><p class="d" id="d-r2">—</p></div>
+    </div>
+
+    <div class="cards">
+      <div class="card wide">
+        <h3>Against the rules it has to beat</h3>
+        <p class="sub">lower MAE and MAPE are better · higher R² is better · identical folds for all three rows</p>
+        <div class="scrollx">
+          <table class="metrics-table" id="metricsTable">
+            <thead><tr><th>Pricing rule</th><th>MAE (lakh)</th><th>MAPE</th><th>R²</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Where the errors land</h3>
+        <p class="sub">out-of-fold log error, log(predicted) − log(actual) · 3,600 listings · 20 bins</p>
+        <div class="chartbox"><canvas id="cResid" role="img" aria-label="Histogram of out-of-fold log errors with the tenth and ninetieth percentile band marked"></canvas></div>
+      </div>
+
+      <div class="card">
+        <h3>What the model leans on</h3>
+        <p class="sub">gradient-boosting feature importance · sums to 1</p>
+        <div class="chartbox"><canvas id="cImp" role="img" aria-label="Horizontal bar chart of feature importances"></canvas></div>
+      </div>
+
+      <div class="card wide">
+        <h3>Where it is weakest</h3>
+        <p class="sub">mean signed log error by price quintile · positive means the model asked too much</p>
+        <p style="font-size:14.5px; color:var(--ink-2); max-width:78ch">
+          The error is not evenly spread. Sorted into price fifths, the mean signed log error runs
+          <b class="num">+0.129</b> → <b class="num">+0.033</b> → <b class="num">−0.001</b> → <b class="num">−0.033</b> → <b class="num">−0.129</b>,
+          monotonically. The model <strong>overprices the cheapest homes and underprices the most expensive</strong> — the
+          classic pull toward the middle of a log-target regression. The cheapest fifth is also the least accurate in
+          percentage terms, at <b class="num">27.6%</b> MAPE against the overall <b class="num">21.4%</b>.
+          Treat the estimate as weakest under about ₹1 crore and above about ₹10 crore.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ 6. methodology ════════════════════════════════════════════════════ -->
+<section id="method">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">Methodology</span><h2 class="display">From raw listings to this page</h2></div>
+    <p class="sec-note">Six stages, each one a command in the <code class="mono">homecast</code> CLI and each one covered by tests.
+       The city is a parameter throughout, which is why three more are already wired into the selector above.</p>
+    <div class="steps">
+      <div class="step">
+        <h3>Collect</h3>
+        <p>3,803 raw Gurgaon listings: price, area, bedrooms, bathrooms, furnishing, age, and a per-listing
+           amenity score, keyed to a sector.</p>
+      </div>
+      <div class="step">
+        <h3>Clean</h3>
+        <p>−126 exact duplicates, −17 listings with no price, −60 percentile outliers on ₹/sq.ft. and area.
+           <strong>3,600 rows</strong> survive, with the row count logged at every step.</p>
+      </div>
+      <div class="step">
+        <h3>Engineer</h3>
+        <p>Eight features. The sector becomes its median ₹/sq.ft. — a target encoding, so it is re-learned
+           inside each training fold rather than once up front.</p>
+      </div>
+      <div class="step">
+        <h3>Train</h3>
+        <p>Gradient-boosted regression on log price. <code>n_estimators 300 · max_depth 3 · learning_rate 0.06
+           · subsample 0.9 · seed 7</code>. No tuning: the defaults already beat both baselines.</p>
+      </div>
+      <div class="step">
+        <h3>Evaluate</h3>
+        <p>5-fold cross-validation against the two rules an agent would otherwise use — sector-median ₹/sq.ft.
+           × area, and city-median ₹/sq.ft. × area. The 10th–90th percentile of the log errors becomes the band.</p>
+      </div>
+      <div class="step">
+        <h3>Ship</h3>
+        <p>All 300 trees export to JSON as plain arrays. This page walks them in about ten lines of JavaScript;
+           a test asserts that walker matches scikit-learn to 1e-9, so the page can never drift from the model.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>Built by Safdar Hussain · Gurgaon live, more cities in the pipeline</span>
+    <span class="mono" id="footStamp">—</span>
+    <a href="https://github.com/safdar-hussain1/homecast">github.com/safdar-hussain1/homecast</a>
+  </div>
+</footer>
+
+<div class="tip" id="tip" role="status" aria-live="off"></div>
+
+<script>
+const DATA = /*__DATA__*/;
+
+/* ── the model, walked in the browser ──────────────────────────────────
+   Mirror of predict_from_export() in src/homecast/export.py, which is
+   tested against scikit-learn to 1e-9.                                  */
+function predict(m, x){
+  let s = m.init;
+  for (const t of m.trees){
+    let i = 0;
+    while (t.l[i] !== -1) i = x[t.f[i]] <= t.t[i] ? t.l[i] : t.r[i];
+    s += m.learning_rate * t.v[i];
+  }
+  return Math.exp(s);
+}
+
+const SP = DATA.encodings.sector_ppsf;
+const GLOBAL_PPSF = SP.__global__;
+const SECTORS = Object.keys(SP).filter(k => k !== '__global__').sort(cmpSector);
+const AREA_MIN = DATA.ranges.area[0], AREA_MAX = DATA.ranges.area[1];
+const LUX_MIN = DATA.ranges.luxury_score[0], LUX_MAX = DATA.ranges.luxury_score[1];
+
+function cmpSector(a, b){
+  const na = /^sector (\d+)/.exec(a), nb = /^sector (\d+)/.exec(b);
+  if (na && nb) return (+na[1] - +nb[1]) || a.localeCompare(b);
+  if (na) return -1;
+  if (nb) return 1;
+  return a.localeCompare(b);
+}
+
+function featureRow(q){
+  const v = {
+    area:            q.area,
+    bedrooms:        q.bedrooms,
+    bathrooms:       q.bathrooms,
+    is_house:        q.type === 'house' ? 1 : 0,
+    furnishing_code: DATA.encodings.furnishing[q.furnishing],
+    luxury_score:    q.luxury,
+    age_code:        (q.age && q.age in DATA.encodings.age) ? DATA.encodings.age[q.age] : -1,
+    sector_ppsf:     (q.sector in SP) ? SP[q.sector] : GLOBAL_PPSF
+  };
+  return DATA.feature_order.map(k => v[k]);
+}
+
+function estimateFor(q){
+  const price = predict(DATA.model, featureRow(q));
+  return {price: price,
+          lo: price * Math.exp(DATA.band[0]),
+          hi: price * Math.exp(DATA.band[1])};
+}
+
+/* ── self-test hook: three canned queries into document.title ─────────── */
+const SELFTEST = [
+  {sector:'sector 65',  type:'flat',  bedrooms:3, bathrooms:3, area:1800, furnishing:'semi-furnished', luxury:60,  age:null},
+  {sector:'sector 65',  type:'house', bedrooms:4, bathrooms:4, area:2500, furnishing:'furnished',      luxury:100, age:null},
+  {sector:'sohna road', type:'flat',  bedrooms:2, bathrooms:2, area:950,  furnishing:'unfurnished',    luxury:20,  age:null}
+];
+if (/[?&]selftest=1\b/.test(location.search)){
+  try {
+    const tags = ['A','B','C'];
+    document.title = 'SELFTEST ' + SELFTEST.map((q, i) => {
+      const e = estimateFor(q);
+      return tags[i] + '=' + e.price.toFixed(2) + '[' + e.lo.toFixed(2) + '-' + e.hi.toFixed(2) + ']';
+    }).join(' ');
+  } catch (err) { document.title = 'SELFTEST FAILED ' + err; }
+}
+
+/* ── formatting ───────────────────────────────────────────────────────── */
+const IN = n => n.toLocaleString('en-IN');
+const cr = v => '₹' + v.toFixed(2) + ' Cr';
+const ppsfFmt = v => '₹' + IN(Math.round(v));
+const titleCase = s => s.charAt(0).toUpperCase() + s.slice(1);
+const shortSector = n => n.startsWith('sector ')
+  ? n.slice(7)
+  : titleCase(n.split(' ')[0]).slice(0, 7);
+function luxWord(v){
+  if (v <= 30) return 'bare';
+  if (v <= 70) return 'mid';
+  if (v <= 120) return 'well kitted';
+  return 'loaded';
+}
+
+/* ── controls ─────────────────────────────────────────────────────────── */
+const $ = id => document.getElementById(id);
+const el = {
+  sector:$('i-sector'), bhk:$('i-bhk'), bath:$('i-bath'), age:$('i-age'),
+  area:$('i-area'), areaR:$('i-area-r'), furn:$('i-furn'), lux:$('i-lux')
+};
+
+function opt(sel, value, label, selected){
+  const o = document.createElement('option');
+  o.value = value; o.textContent = label; if (selected) o.selected = true;
+  sel.appendChild(o);
+}
+
+SECTORS.forEach(s => opt(el.sector, s, titleCase(s) + ' · ' + ppsfFmt(SP[s]) + '/sq.ft.', s === 'sector 65'));
+for (let i = 1; i <= 6; i++) opt(el.bhk, i, i + ' BHK', i === 3);
+for (let i = 1; i <= 6; i++) opt(el.bath, i, String(i), i === 3);
+Object.keys(DATA.encodings.age).forEach(a => opt(el.age, a, a, false));
+Object.keys(DATA.encodings.furnishing).forEach(f => opt(el.furn, f, titleCase(f), f === 'semi-furnished'));
+
+el.area.min = AREA_MIN; el.area.max = AREA_MAX;
+el.areaR.min = AREA_MIN; el.areaR.max = AREA_MAX;
+el.lux.min = LUX_MIN; el.lux.max = LUX_MAX;
+$('area-lo').textContent = IN(AREA_MIN) + ' sq.ft.';
+$('area-hi').textContent = IN(AREA_MAX) + ' sq.ft.';
+$('lux-hi').textContent = LUX_MAX + ' · loaded';
+$('atlasCount').textContent = DATA.sectors.length + ' of ' + SECTORS.length + ' sectors have ≥30 listings';
+$('footStamp').textContent = DATA.model.trees.length + ' trees · ' + IN(DATA.generated_n) + ' listings · in-browser inference';
+
+let propType = 'flat';
+document.getElementById('i-type').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  propType = b.dataset.v;
+  document.querySelectorAll('#i-type button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  render();
+});
+
+function currentQuery(){
+  const raw = parseFloat(el.area.value);
+  const asked = Number.isFinite(raw) ? raw : 1800;
+  const area = Math.min(AREA_MAX, Math.max(AREA_MIN, asked));
+  return {
+    sector: el.sector.value, type: propType,
+    bedrooms: +el.bhk.value, bathrooms: +el.bath.value,
+    area: area, askedArea: asked,
+    furnishing: el.furn.value, luxury: +el.lux.value,
+    age: el.age.value || null
+  };
+}
+
+/* ── render ───────────────────────────────────────────────────────────── */
+let ladderChart = null, scatterChart = null, residChart = null, impChart = null;
+
+function render(){
+  const q = currentQuery();
+  const e = estimateFor(q);
+
+  /* area guard — clamp, never extrapolate silently */
+  const clamped = Math.abs(q.askedArea - q.area) > 1e-9;
+  const w = $('areaWarn');
+  if (clamped){
+    w.classList.add('on');
+    $('areaWarnText').innerHTML = 'The model saw areas from <b>' + IN(AREA_MIN) + '</b> to <b>' + IN(AREA_MAX) +
+      '</b> sq.ft. You asked for <b>' + IN(Math.round(q.askedArea)) + '</b>, so the estimate below is priced at <b>' +
+      IN(q.area) + ' sq.ft.</b> — outside that range the model would be guessing.';
+  } else {
+    w.classList.remove('on');
+  }
+  $('v-area').textContent = IN(q.area);
+  $('v-lux').textContent = q.luxury;
+  $('v-luxword').textContent = luxWord(q.luxury);
+  if (document.activeElement !== el.area) el.area.value = q.area;
+  el.areaR.value = q.area;
+
+  /* the slip */
+  const fig = $('figure');
+  fig.classList.add('flash');
+  setTimeout(() => fig.classList.remove('flash'), 20);
+  $('figVal').textContent = e.price.toFixed(2);
+  $('bandLo').textContent = cr(e.lo);
+  $('bandHi').textContent = cr(e.hi);
+  $('slipSpec').textContent = [titleCase(q.sector), q.type, q.bedrooms + ' BHK', q.bathrooms + ' bath',
+                               IN(q.area) + ' sq.ft.', q.furnishing, 'amenity ' + q.luxury,
+                               q.age ? q.age.toLowerCase() : 'age not given'].join(' · ');
+
+  /* the ₹/sq.ft. rule of thumb — sector median ₹/sq.ft. × area, the same
+     formula as the sector-median baseline the model is scored against */
+  const sectorPpsf = (q.sector in SP) ? SP[q.sector] : GLOBAL_PPSF;
+  const rule = sectorPpsf * q.area / 1e7;
+  const known = q.sector in SP;
+  $('ruleVal').textContent = cr(rule);
+  $('ruleWork').textContent = (known ? titleCase(q.sector) : 'city') + ' median ' + ppsfFmt(sectorPpsf) +
+                              ' × ' + IN(q.area) + ' sq.ft.';
+  const diff = e.price - rule;
+  $('diffVal').textContent = (diff >= 0 ? '+' : '−') + '₹' + Math.abs(diff).toFixed(2) + ' Cr';
+  $('impliedPpsf').textContent = ppsfFmt(e.price * 1e7 / q.area) + '/sq.ft.';
+  $('refCode').textContent = ['HC', 'GGN', shortSector(q.sector).toUpperCase().replace(/\s+/g, ''),
+      (q.type === 'house' ? 'H' : 'F') + q.bedrooms + 'B' + q.bathrooms,
+      Math.round(q.area) + 'SF', q.furnishing.split('-').map(p => p[0].toUpperCase()).join(''),
+      'L' + q.luxury].join('-');
+
+  /* band ruler: model pin is fixed by the band; the rule pin moves */
+  const pos = v => 8 + 84 * Math.min(1, Math.max(0, (v - e.lo) / (e.hi - e.lo)));
+  $('pinModel').style.left = pos(e.price) + '%';
+  const inBand = rule >= e.lo && rule <= e.hi;
+  $('pinRule').style.left = pos(rule) + '%';
+  $('pinRule').style.opacity = inBand ? '1' : '.45';
+  $('ruleLegend').textContent = inBand
+    ? '₹/sq.ft. rule of thumb'
+    : '₹/sq.ft. rule of thumb (' + cr(rule) + ', outside the band)';
+
+  renderComparables(q);
+  markSelectedSector(q.sector);
+  if (ladderChart) updateLadder(q.sector);
+}
+
+/* ── comparables ──────────────────────────────────────────────────────── */
+function renderComparables(q){
+  let pool = DATA.sample.filter(r => r.sector === q.sector);
+  const fellBack = pool.length === 0;
+  if (fellBack) pool = DATA.sample;
+  const rows = pool.slice().sort((a, b) => Math.abs(a.area - q.area) - Math.abs(b.area - q.area)).slice(0, 5);
+
+  const tb = document.querySelector('#compTable tbody');
+  tb.innerHTML = '';
+  rows.forEach(r => {
+    const gap = Math.round(r.area - q.area);
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td>' + titleCase(r.sector) + '</td>' +
+      '<td><span class="tag">' + r.property_type + '</span></td>' +
+      '<td>' + r.bedrooms + '</td>' +
+      '<td>' + IN(r.area) + '</td>' +
+      '<td>' + cr(r.price) + '</td>' +
+      '<td>' + ppsfFmt(r.price * 1e7 / r.area) + '</td>' +
+      '<td>' + (gap === 0 ? 'exact' : (gap > 0 ? '+' : '−') + IN(Math.abs(gap))) + '</td>';
+    tb.appendChild(tr);
+  });
+  $('compNote').textContent = fellBack
+    ? 'No sampled listing falls in ' + titleCase(q.sector) + ', so these are the closest matches from anywhere in the city. The sample holds 400 of the 3,600 cleaned listings, so thinly-traded sectors drop out.'
+    : 'Closest five by built-up area inside ' + titleCase(q.sector) + ', from ' + pool.length +
+      ' sampled listing' + (pool.length === 1 ? '' : 's') + ' there.';
+}
+
+/* ── sector atlas ─────────────────────────────────────────────────────── */
+const tip = $('tip');
+function showTip(html, x, y){
+  tip.innerHTML = html;
+  tip.style.opacity = '1';
+  tip.style.left = Math.min(x + 14, window.innerWidth - 250) + 'px';
+  tip.style.top = Math.min(y + 14, window.innerHeight - 110) + 'px';
+}
+const hideTip = () => { tip.style.opacity = '0'; };
+
+const ppsfVals = DATA.sectors.map(s => s.median_ppsf).slice().sort((a, b) => a - b);
+const stepEdges = [1,2,3,4,5,6,7].map(i => ppsfVals[Math.floor(i * ppsfVals.length / 8)]);
+const stepOf = v => { let s = 0; while (s < 7 && v >= stepEdges[s]) s++; return s; };
+
+$('rampLo').textContent = ppsfFmt(ppsfVals[0]);
+$('rampHi').textContent = ppsfFmt(ppsfVals[ppsfVals.length - 1]);
+
+const tilesWrap = $('tiles');
+DATA.sectors.slice().sort((a, b) => cmpSector(a.name, b.name)).forEach(s => {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'tile';
+  b.dataset.s = stepOf(s.median_ppsf);
+  b.dataset.name = s.name;
+  b.setAttribute('role', 'listitem');
+  b.innerHTML = shortSector(s.name).slice(0, 6) + '<em>' + Math.round(s.median_ppsf / 1000) + 'k</em>';
+  b.setAttribute('aria-label', titleCase(s.name) + ': median ' + ppsfFmt(s.median_ppsf) +
+    ' per sq.ft., median price ' + cr(s.median_price_cr) + ', ' + s.n + ' listings. Select this sector.');
+  const html = '<b>' + titleCase(s.name) + '</b><br>' + ppsfFmt(s.median_ppsf) + ' / sq.ft.<br>median ' +
+               cr(s.median_price_cr) + '<br>' + s.n + ' listings';
+  b.addEventListener('mousemove', ev => showTip(html, ev.clientX, ev.clientY));
+  b.addEventListener('mouseleave', hideTip);
+  b.addEventListener('focus', () => { const r = b.getBoundingClientRect(); showTip(html, r.right - 8, r.top); });
+  b.addEventListener('blur', hideTip);
+  b.addEventListener('click', () => { el.sector.value = s.name; render(); });
+  tilesWrap.appendChild(b);
+});
+
+function markSelectedSector(name){
+  tilesWrap.querySelectorAll('.tile').forEach(t => t.classList.toggle('sel', t.dataset.name === name));
+}
+
+const stb = document.querySelector('#sectorTable tbody');
+DATA.sectors.forEach(s => {
+  const tr = document.createElement('tr');
+  tr.innerHTML = '<td>' + titleCase(s.name) + '</td><td>' + s.n + '</td><td>' + cr(s.median_price_cr) +
+                 '</td><td>' + ppsfFmt(s.median_ppsf) + '</td>';
+  stb.appendChild(tr);
+});
+
+/* ── model card numbers, straight from the payload ────────────────────── */
+const M = DATA.metrics;
+$('m-mae').innerHTML = M.model.mae_lakh.toFixed(1) + '<small> lakh</small>';
+$('m-mape').innerHTML = M.model.mape_pct.toFixed(1) + '<small>%</small>';
+$('m-r2').textContent = M.model.r2.toFixed(3);
+$('d-mae').innerHTML = '−' + (M.baseline_sector.mae_lakh - M.model.mae_lakh).toFixed(1) + ' lakh <span>vs the ₹/sq.ft. rule</span>';
+$('d-mape').innerHTML = '−' + (M.baseline_sector.mape_pct - M.model.mape_pct).toFixed(1) + ' points <span>vs the ₹/sq.ft. rule</span>';
+$('d-r2').innerHTML = '+' + (M.model.r2 - M.baseline_sector.r2).toFixed(3) + ' <span>vs the ₹/sq.ft. rule</span>';
+
+const mtb = document.querySelector('#metricsTable tbody');
+[['HomeCast model', 'gradient-boosted trees on log price', M.model, true],
+ ['Sector-median ₹/sq.ft. × area', 'the rule of thumb every agent uses', M.baseline_sector, false],
+ ['City-median ₹/sq.ft. × area', 'one rate for all of Gurgaon', M.baseline_global, false]
+].forEach(([name, sub, m, me]) => {
+  const tr = document.createElement('tr');
+  if (me) tr.className = 'me';
+  tr.innerHTML = '<td>' + name + '<small>' + sub + '</small></td><td>' + m.mae_lakh.toFixed(1) +
+                 '</td><td>' + m.mape_pct.toFixed(1) + '%</td><td>' + m.r2.toFixed(3) + '</td>';
+  mtb.appendChild(tr);
+});
+
+/* ── charts ───────────────────────────────────────────────────────────── */
+const css = () => getComputedStyle(document.documentElement);
+const C = n => css().getPropertyValue(n).trim();
+
+/* Feature importances are reported by the trained estimator; the four the
+   model actually leans on, with the remaining four rolled up. */
+const IMPORTANCES = [
+  ['Built-up area', 0.537],
+  ['Sector ₹/sq.ft.', 0.195],
+  ['Bathrooms', 0.157],
+  ['House (not flat)', 0.085],
+  ['Other four features', 0.026]
+];
+
+function bandLines(){
+  return {
+    id: 'bandLines',
+    afterDatasetsDraw(chart){
+      const {ctx, chartArea, scales} = chart;
+      if (!chartArea) return;
+      const edges = DATA.residual_hist.edges;
+      const w = edges[1] - edges[0];
+      const toX = v => scales.x.getPixelForValue((v - edges[0]) / w - 0.5);
+      ctx.save();
+      ctx.setLineDash([]);
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = C('--s2');
+      [DATA.band[0], DATA.band[1]].forEach(b => {
+        const x = toX(b);
+        if (x < chartArea.left || x > chartArea.right) return;
+        ctx.beginPath(); ctx.moveTo(x, chartArea.top); ctx.lineTo(x, chartArea.bottom); ctx.stroke();
+      });
+      ctx.fillStyle = C('--s2');
+      ctx.font = '500 10px "DM Mono", monospace';
+      ctx.textBaseline = 'top';
+      ctx.textAlign = 'right';
+      ctx.fillText('10th', toX(DATA.band[0]) - 5, chartArea.top + 2);
+      ctx.textAlign = 'left';
+      ctx.fillText('90th', toX(DATA.band[1]) + 5, chartArea.top + 2);
+      ctx.restore();
+    }
+  };
+}
+
+function buildCharts(){
+  if (typeof Chart === 'undefined') return;
+  Chart.defaults.font.family = '"Public Sans", system-ui, sans-serif';
+  Chart.defaults.font.size = 11;
+  Chart.defaults.color = C('--ink-3');
+  Chart.defaults.borderColor = C('--hair');
+  Chart.defaults.maintainAspectRatio = false;
+  Chart.defaults.animation = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? false : {duration: 320};
+  Chart.defaults.plugins.tooltip.backgroundColor = C('--ink');
+  Chart.defaults.plugins.tooltip.titleColor = C('--plane');
+  Chart.defaults.plugins.tooltip.bodyColor = C('--plane');
+  Chart.defaults.plugins.tooltip.padding = 9;
+  Chart.defaults.plugins.tooltip.cornerRadius = 7;
+  Chart.defaults.plugins.tooltip.displayColors = false;
+  Chart.defaults.plugins.tooltip.titleFont = {family: '"DM Mono", monospace', size: 11, weight: '500'};
+  Chart.defaults.plugins.tooltip.bodyFont = {family: '"DM Mono", monospace', size: 11};
+
+  const grid = {color: C('--hair'), drawTicks: false, lineWidth: 1};
+  const noGrid = {display: false};
+
+  [ladderChart, scatterChart, residChart, impChart].forEach(c => c && c.destroy());
+
+  /* 1 — sector price ladder */
+  const lad = DATA.sectors.slice().sort((a, b) => b.median_price_cr - a.median_price_cr);
+  ladderChart = new Chart($('cLadder'), {
+    type: 'bar',
+    data: {labels: lad.map(s => shortSector(s.name)),
+           datasets: [{data: lad.map(s => s.median_price_cr), backgroundColor: C('--s1-fade'),
+                       borderRadius: {topLeft: 4, topRight: 4}, borderSkipped: 'bottom',
+                       categoryPercentage: .92, barPercentage: .86}]},
+    options: {
+      layout: {padding: {top: 6}},
+      plugins: {legend: {display: false}, tooltip: {callbacks: {
+        title: i => titleCase(lad[i[0].dataIndex].name),
+        label: i => 'median ' + cr(i.parsed.y) + ' · ' + ppsfFmt(lad[i.dataIndex].median_ppsf) + '/sq.ft. · ' + lad[i.dataIndex].n + ' listings'}}},
+      scales: {x: {grid: noGrid, border: {color: C('--line')}, ticks: {autoSkip: false, maxRotation: 90, minRotation: 90, font: {family: '"DM Mono", monospace', size: 10}}},
+               y: {grid: grid, border: {display: false}, ticks: {callback: v => '₹' + v + ' Cr'}}}
+    }
+  });
+  ladderChart._rows = lad;
+  updateLadder(el.sector.value);
+
+  /* 2 — price against area */
+  const flats = DATA.sample.filter(r => r.property_type === 'flat').map(r => ({x: r.area, y: r.price, s: r.sector, b: r.bedrooms}));
+  const houses = DATA.sample.filter(r => r.property_type === 'house').map(r => ({x: r.area, y: r.price, s: r.sector, b: r.bedrooms}));
+  const ring = C('--surface');
+  scatterChart = new Chart($('cScatter'), {
+    type: 'scatter',
+    data: {datasets: [
+      {label: 'Flat (' + flats.length + ')', data: flats, backgroundColor: C('--s1'),
+       pointRadius: 3.4, pointHoverRadius: 6, borderColor: ring, borderWidth: 1.5, hitRadius: 8},
+      {label: 'House (' + houses.length + ')', data: houses, backgroundColor: C('--s2'),
+       pointRadius: 3.4, pointHoverRadius: 6, borderColor: ring, borderWidth: 1.5, hitRadius: 8}]},
+    options: {
+      plugins: {
+        legend: {display: true, position: 'top', align: 'end',
+                 labels: {usePointStyle: true, boxHeight: 7, boxWidth: 7, color: C('--ink-2'), padding: 14}},
+        tooltip: {callbacks: {title: i => titleCase(i[0].raw.s),
+                              label: i => i.raw.b + ' BHK · ' + IN(i.raw.x) + ' sq.ft. · ' + cr(i.raw.y)}}},
+      scales: {x: {title: {display: true, text: 'built-up area (sq.ft.)', color: C('--ink-3')}, grid: grid, border: {display: false}, ticks: {callback: v => IN(v)}},
+               y: {title: {display: true, text: 'price (₹ crore)', color: C('--ink-3')}, grid: grid, border: {display: false}, ticks: {callback: v => '₹' + v}}}
+    }
+  });
+
+  /* 3 — residual histogram */
+  const edges = DATA.residual_hist.edges;
+  const centres = edges.slice(0, -1).map((e0, i) => (e0 + edges[i + 1]) / 2);
+  residChart = new Chart($('cResid'), {
+    type: 'bar',
+    data: {labels: centres.map(c => c.toFixed(2)),
+           datasets: [{data: DATA.residual_hist.counts, backgroundColor: C('--s1'),
+                       borderRadius: {topLeft: 3, topRight: 3}, borderSkipped: 'bottom',
+                       categoryPercentage: 1, barPercentage: .9}]},
+    options: {
+      plugins: {legend: {display: false}, tooltip: {callbacks: {
+        title: i => 'log error ' + edges[i[0].dataIndex].toFixed(2) + ' to ' + edges[i[0].dataIndex + 1].toFixed(2),
+        label: i => IN(i.parsed.y) + ' listings'}}},
+      scales: {x: {grid: noGrid, border: {color: C('--line')},
+                   ticks: {maxTicksLimit: 7, font: {family: '"DM Mono", monospace', size: 10}}},
+               y: {grid: grid, border: {display: false}, title: {display: true, text: 'listings', color: C('--ink-3')}}}
+    },
+    plugins: [bandLines()]
+  });
+
+  /* 4 — feature importances */
+  impChart = new Chart($('cImp'), {
+    type: 'bar',
+    data: {labels: IMPORTANCES.map(r => r[0]),
+           datasets: [{data: IMPORTANCES.map(r => r[1]), backgroundColor: C('--s1'),
+                       borderRadius: {topRight: 3, bottomRight: 3}, borderSkipped: 'left', barPercentage: .68}]},
+    options: {
+      indexAxis: 'y',
+      layout: {padding: {right: 34}},
+      plugins: {legend: {display: false},
+                tooltip: {callbacks: {label: i => (i.parsed.x * 100).toFixed(1) + '% of total importance'}}},
+      scales: {y: {grid: noGrid, border: {display: false}, ticks: {color: C('--ink-2'), font: {size: 12}}},
+               x: {grid: grid, border: {display: false}, max: .6, ticks: {callback: v => Math.round(v * 100) + '%'}}}
+    },
+    plugins: [{
+      id: 'impLabels',
+      afterDatasetsDraw(chart){
+        const {ctx} = chart;
+        ctx.save();
+        ctx.fillStyle = C('--ink');
+        ctx.font = '600 11.5px "Public Sans", sans-serif';
+        ctx.textBaseline = 'middle';
+        chart.getDatasetMeta(0).data.forEach((bar, i) => {
+          ctx.fillText((IMPORTANCES[i][1] * 100).toFixed(1) + '%', bar.x + 8, bar.y);
+        });
+        ctx.restore();
+      }
+    }]
+  });
+}
+
+function updateLadder(sector){
+  if (!ladderChart || !ladderChart._rows) return;
+  const rows = ladderChart._rows;
+  ladderChart.data.datasets[0].backgroundColor = rows.map(s => s.name === sector ? C('--s1') : C('--s1-fade'));
+  ladderChart.update('none');
+}
+
+/* ── theme ────────────────────────────────────────────────────────────── */
+function currentTheme(){
+  const t = document.documentElement.getAttribute('data-theme');
+  if (t) return t;
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+function syncThemeLabel(){
+  $('themeLabel').textContent = currentTheme() === 'dark' ? 'Dark' : 'Light';
+}
+$('themeBtn').addEventListener('click', () => {
+  const next = currentTheme() === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  try { localStorage.setItem('hc-theme', next); } catch (e) {}
+  syncThemeLabel();
+  buildCharts();
+  render();
+});
+syncThemeLabel();
+
+/* ── wire up ──────────────────────────────────────────────────────────── */
+[el.sector, el.bhk, el.bath, el.age, el.furn].forEach(c => c.addEventListener('change', render));
+el.area.addEventListener('input', render);
+el.areaR.addEventListener('input', () => { el.area.value = el.areaR.value; render(); });
+el.lux.addEventListener('input', render);
+el.area.addEventListener('blur', render);
+window.addEventListener('scroll', hideTip, {passive: true});
+
+buildCharts();
+render();
+</script>
+</body>
+</html>
