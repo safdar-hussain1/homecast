@@ -49,3 +49,31 @@ def test_predict_out_of_range_is_friendly(city_env, capsys):
 def test_unknown_city_is_friendly(capsys):
     assert cli.main(["clean", "--city", "atlantis"]) == 2
     assert "gurgaon" in capsys.readouterr().err
+
+def test_city_flag_only_after_subcommand(city_env, capsys):
+    """The top-level parser must not advertise a --city it would discard."""
+    with pytest.raises(SystemExit):
+        cli.main(["--city", "gurgaon", "clean"])
+
+def test_evaluate_prints_metrics_table(city_env, capsys):
+    rc = cli.main(["evaluate", "--city", "gurgaon"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "HomeCast model" in out
+    assert "Sector-median baseline" in out
+    assert "Global-median baseline" in out
+
+def test_export_dashboard_rewrites_model_json(city_env, capsys):
+    cli.main(["train"])
+    model_json = city_env.models_dir / "model.json"
+    before = model_json.read_text()
+    model_json.unlink()
+    rc = cli.main(["export-dashboard", "--city", "gurgaon"])
+    assert rc == 0
+    assert model_json.exists()
+    assert model_json.read_text() == before
+
+def test_export_dashboard_without_trained_model_is_friendly(city_env, capsys):
+    rc = cli.main(["export-dashboard", "--city", "gurgaon"])
+    assert rc == 2
+    assert "homecast train" in capsys.readouterr().err

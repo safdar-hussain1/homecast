@@ -4,6 +4,8 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import warnings
+from contextlib import contextmanager
 
 import joblib
 
@@ -15,11 +17,29 @@ from homecast.model import train_final
 from homecast.valuation import Query, estimate
 
 
+@contextmanager
+def _quiet_joblib():
+    """joblib 1.5 + numpy 2.5 emit a DeprecationWarning from inside joblib's
+    own pickler; it is not actionable by a user of this CLI."""
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=DeprecationWarning, module="joblib")
+        yield
+
+
 def _load_processed(city):
     import pandas as pd
     if not city.processed_path.exists():
         _do_clean(city)
     return pd.read_csv(city.processed_path)
+
+
+def _load_fitted(city):
+    """Load the trained model, failing with an actionable message if absent."""
+    mpath = city.models_dir / "model.joblib"
+    if not mpath.exists():
+        raise ValueError(f"No trained model at {mpath} — run `homecast train` first")
+    with _quiet_joblib():
+        return joblib.load(mpath)
 
 
 def _do_clean(city) -> None:
@@ -43,7 +63,6 @@ def _fmt_metrics(m: dict) -> str:
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(prog="homecast",
                                 description="Residential property price intelligence")
-    p.add_argument("--city", default="gurgaon")
     sub = p.add_subparsers(dest="cmd", required=True)
     for name in ("clean", "train", "evaluate", "export-dashboard"):
         sub.add_parser(name).add_argument("--city", default="gurgaon")
@@ -67,7 +86,8 @@ def main(argv=None) -> int:
             df = _load_processed(city)
             fitted = train_final(df)
             city.models_dir.mkdir(parents=True, exist_ok=True)
-            joblib.dump(fitted, city.models_dir / "model.joblib")
+            with _quiet_joblib():
+                joblib.dump(fitted, city.models_dir / "model.joblib")
             write_export(export_city(fitted, df, city), city.models_dir / "model.json")
             (city.models_dir / "metrics.json").write_text(
                 json.dumps({k: fitted.metrics[k] for k in
@@ -78,17 +98,14 @@ def main(argv=None) -> int:
         elif a.cmd == "evaluate":
             print(_fmt_metrics(evaluate_cv(_load_processed(city))))
         elif a.cmd == "export-dashboard":
-            mpath = city.models_dir / "model.joblib"
-            if not mpath.exists():
-                raise ValueError(f"No trained model at {mpath} — run `homecast train` first")
-            fitted = joblib.load(mpath)
+            fitted = _load_fitted(city)
             write_export(export_city(fitted, _load_processed(city), city),
                          city.models_dir / "model.json")
             print(f"Wrote {city.models_dir / 'model.json'}")
         elif a.cmd == "predict":
             # joblib is safe here: model.joblib is only ever produced by this
             # machine's own `homecast train` run (gitignored, never downloaded).
-            fitted = joblib.load(city.models_dir / "model.joblib")
+            fitted = _load_fitted(city)
             q = Query(sector=a.sector, property_type=a.ptype, bedrooms=a.bhk,
                       bathrooms=a.bath, area=a.area, furnishing=a.furnishing,
                       luxury_score=a.luxury, age=a.age)
