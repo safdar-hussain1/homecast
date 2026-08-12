@@ -92,3 +92,17 @@ def clean_raw_data(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
         removed = before - len(df)
         log.append(f"{name}: {removed} rows removed ({len(df)} remain)" if removed else f"{name}: ok")
     return df, log
+
+
+from homecast.cities import get_city
+
+# Per-city pipeline registry; each entry is the city's clean function
+# (raw DataFrame) -> (cleaned DataFrame, step log).
+PIPELINES = {"gurgaon": clean_raw_data}
+
+
+def clean_city(key: str):
+    """Load a city's raw feed and run its cleaning pipeline."""
+    city = get_city(key)
+    pipeline = PIPELINES[city.key]
+    return pipeline(load_raw(city.raw_path))
