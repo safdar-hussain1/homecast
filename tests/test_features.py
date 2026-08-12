@@ -41,3 +41,16 @@ def test_missing_age_coded_minus_one(clean_fixture):
     missing = clean_fixture["age_possession"].isna()
     if missing.any():
         assert (X.loc[missing, "age_code"] == -1).all()
+
+def test_sector_encoding_uses_only_given_rows(clean_fixture):
+    """Dropping some of a sector's rows must change its encoding —
+    proof the median comes from exactly the rows passed in."""
+    s1 = clean_fixture[clean_fixture["sector"] == "sector 1"]
+    # drop the highest-ppsf half of sector 1's rows
+    drop_idx = s1.sort_values("price_per_sqft").index[len(s1) // 2:]
+    subset = clean_fixture.drop(index=drop_idx)
+    m_full = sector_encoding(clean_fixture)
+    m_fold = sector_encoding(subset)
+    assert m_fold["sector 1"] != m_full["sector 1"]
+    assert m_fold["sector 1"] == pytest.approx(
+        subset[subset["sector"] == "sector 1"]["price_per_sqft"].median())
