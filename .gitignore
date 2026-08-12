@@ -13,3 +13,8 @@ venv/
 # Editors
 .vscode/
 .idea/
+
+# Build and testing
+.pytest_cache/
+src/*.egg-info/
+__pycache__/

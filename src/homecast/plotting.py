@@ -5,10 +5,7 @@ from pathlib import Path
 import matplotlib as mpl
 from matplotlib.colors import LinearSegmentedColormap
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-RAW_DATA_PATH = PROJECT_ROOT / "data" / "raw" / "gurgaon_properties.csv"
-PROCESSED_DATA_PATH = PROJECT_ROOT / "data" / "processed" / "gurgaon_properties_cleaned.csv"
-FIGURES_DIR = PROJECT_ROOT / "reports" / "figures"
+FIGURES_DIR = Path(__file__).resolve().parents[2] / "reports" / "figures"
 
 # Categorical palette (fixed order, CVD-safe adjacent separation).
 PALETTE = {
