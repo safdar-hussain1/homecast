@@ -29,7 +29,8 @@ def export_city(fitted: FittedModel, df: pd.DataFrame, city: City) -> dict:
     by_sector = (df.groupby("sector")
                    .agg(n=("price", "size"), median_price_cr=("price", "median"),
                         median_ppsf=("price_per_sqft", "median"))
-                   .reset_index())
+                   .reset_index()
+                   .rename(columns={"sector": "name"}))
     by_sector = by_sector[by_sector["n"] >= 30].sort_values(
         "median_price_cr", ascending=False)
     sample = (df[["sector", "property_type", "bedrooms", "area", "price"]]
@@ -44,6 +45,8 @@ def export_city(fitted: FittedModel, df: pd.DataFrame, city: City) -> dict:
                   "trees": [tree_to_arrays(e[0].tree_) for e in fitted.model.estimators_]},
         "feature_order": list(FEATURE_COLUMNS),
         "encodings": {"furnishing": FURNISHING_CODES, "age": AGE_CODES,
+                      # includes the internal "__global__" fallback key alongside
+                      # real sector names -- don't iterate this as "all sectors"
                       "sector_ppsf": {k: float(v) for k, v in fitted.sector_map.items()}},
         "band": [float(fitted.band[0]), float(fitted.band[1])],
         "ranges": fitted.ranges,

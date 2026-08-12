@@ -1,6 +1,7 @@
 import json
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from homecast.cities import get_city
@@ -38,3 +39,24 @@ def test_residual_hist_shape(payload):
     _, p = payload
     assert len(p["residual_hist"]["edges"]) == 21
     assert len(p["residual_hist"]["counts"]) == 20
+
+def test_sectors_records_shape_and_filter(clean_fixture, payload):
+    """Sectors aggregation: >=30-listing filter, key names, sort order."""
+    fitted, _ = payload
+    # "big sector": 40 rows -> survives the >=30 filter.
+    # "mid sector": 35 rows with price doubled -> also survives, and its median
+    # is unambiguously higher than "big sector"'s, so descending sort order is
+    # deterministic regardless of which rows the samples happen to draw.
+    # "small sector": 10 rows -> filtered out.
+    big = clean_fixture.sample(n=40, replace=True, random_state=1).assign(sector="big sector")
+    mid = clean_fixture.sample(n=35, replace=True, random_state=3).assign(sector="mid sector")
+    mid = mid.assign(price=mid["price"] * 2)
+    small = clean_fixture.sample(n=10, replace=True, random_state=2).assign(sector="small sector")
+    df = pd.concat([big, mid, small], ignore_index=True)
+    p = export_city(fitted, df, get_city("gurgaon"))
+    names = [s["name"] for s in p["sectors"]]
+    assert names == ["mid sector", "big sector"]
+    rec = p["sectors"][1]
+    assert set(rec) == {"name", "n", "median_price_cr", "median_ppsf"}
+    assert rec["n"] == 40
+    assert rec["median_price_cr"] == pytest.approx(big["price"].median())
