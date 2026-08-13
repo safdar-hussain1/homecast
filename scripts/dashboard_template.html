@@ -605,12 +605,13 @@ footer .mono{font-size:12px; color:var(--ink-3)}
         </div>
         <p class="slip-spec mono" id="slipSpec">—</p>
         <div class="slip-body">
+          <p class="warn" id="baselineNote" role="status"><span class="ic" aria-hidden="true">!</span><span id="baselineNoteText"></span></p>
           <p class="eyebrow">Estimated price</p>
           <p class="figure" id="figure" role="status" aria-live="polite">
             <span class="cur">₹</span><span id="figVal">—</span><span class="unit">Cr</span>
           </p>
           <p class="fig-sub" id="accuracyNote">—</p>
-          <p class="fig-sub">The band below is the model's 10th-to-90th-percentile error, so eight out of ten
+          <p class="fig-sub" id="bandNote">The band below is the model's 10th-to-90th-percentile error, so eight out of ten
              listings land inside it.</p>
 
           <div class="ruler">
@@ -621,7 +622,7 @@ footer .mono{font-size:12px; color:var(--ink-3)}
             </div>
             <div class="ends"><span id="bandLo">—</span><span id="bandHi">—</span></div>
             <div class="legend">
-              <span><i class="k-model"></i>Model estimate</span>
+              <span><i class="k-model"></i><span id="pinModelLabel">Model estimate</span></span>
               <span><i class="k-rule"></i><span id="ruleLegend">₹/sq.ft. rule of thumb</span></span>
             </div>
           </div>
@@ -631,11 +632,11 @@ footer .mono{font-size:12px; color:var(--ink-3)}
 
         <div class="slip-foot">
           <dl class="kv">
-            <dt>₹/sq.ft. rule of thumb<small id="ruleWork">—</small></dt>
+            <dt><span id="ruleLabel">₹/sq.ft. rule of thumb</span><small id="ruleWork">—</small></dt>
             <dd class="rulev" id="ruleVal">—</dd>
-            <dt>Model minus rule</dt>
+            <dt><span id="diffLabel">Model minus rule</span></dt>
             <dd id="diffVal">—</dd>
-            <dt>Model implied ₹/sq.ft.</dt>
+            <dt>Estimate implied ₹/sq.ft.</dt>
             <dd id="impliedPpsf">—</dd>
           </dl>
           <p class="ref"><b>ref</b> <span id="refCode">—</span></p>
@@ -897,6 +898,14 @@ const SECTORS = Object.keys(SP).filter(k => k !== '__global__').sort(cmpSector);
    as dead UI that silently feeds a value the model never trained on. */
 const FEATURES = new Set(DATA.feature_order);
 const HAS = f => FEATURES.has(f);
+/* This city's model did not beat its own locality-median ₹/sq.ft. rule of
+   thumb in cross-validation (see homecast.model.model_beats_baseline) --
+   DATA.baseline_served, DATA.baseline_note and DATA.baseline_band are only
+   ever present/true together (see export.py). When true, the rule of thumb
+   IS the estimate this page shows: every place below that would otherwise
+   read "the model's price" reads the rule's price instead, and says so. */
+const BASELINE_SERVED = DATA.baseline_served === true;
+const BASELINE_BAND = DATA.baseline_band || [0, 0];
 /* Three-letter stamp for the reference code, from the city's own name. */
 const CITY_CODE = DATA.city.replace(/[^A-Za-z]/g, '').toUpperCase().slice(0, 3) || 'CTY';
 
@@ -961,12 +970,25 @@ function featureRow(q){
    actual = pred × exp(−residual). The sign is negated on purpose: the q90
    residual (the biggest overestimates) gives the LOW end of the true price and
    the q10 residual gives the HIGH end. Mirrors estimate() in valuation.py.
-   Do not "fix" this back. */
+   Do not "fix" this back. Same construction for the rule's own band
+   (BASELINE_BAND), mirroring valuation.estimate()'s baseline_lo_cr/hi_cr. */
 function estimateFor(q){
-  const price = predict(DATA.model, featureRow(q));
-  return {price: price,
-          lo: price * Math.exp(-DATA.band[1]),
-          hi: price * Math.exp(-DATA.band[0])};
+  const modelPrice = predict(DATA.model, featureRow(q));
+  const sectorPpsf = (q.sector in SP) ? SP[q.sector] : GLOBAL_PPSF;
+  const rulePrice = sectorPpsf * q.area / 1e7;
+  const ruleEst = {price: rulePrice,
+                   lo: rulePrice * Math.exp(-BASELINE_BAND[1]),
+                   hi: rulePrice * Math.exp(-BASELINE_BAND[0])};
+  const modelEst = {price: modelPrice,
+                    lo: modelPrice * Math.exp(-DATA.band[1]),
+                    hi: modelPrice * Math.exp(-DATA.band[0])};
+  // BASELINE_SERVED picks which of the two IS "the estimate" this function
+  // returns; the other one is still attached (as .other) so the page can
+  // show it for comparison without recomputing it from scratch.
+  const served = BASELINE_SERVED ? ruleEst : modelEst;
+  const other = BASELINE_SERVED ? modelEst : ruleEst;
+  return {price: served.price, lo: served.lo, hi: served.hi,
+          modelPrice: modelPrice, rulePrice: rulePrice, other: other};
 }
 
 /* ── self-test hook: three canned queries into document.title ─────────── */
@@ -1067,6 +1089,26 @@ document.querySelectorAll('.js-Loc').forEach(n => { n.textContent = cap(LOC); })
 document.querySelectorAll('.js-Locs').forEach(n => { n.textContent = cap(LOCS); });
 if (!HAS('society_ppsf')) document.querySelectorAll('.soc-only').forEach(node => node.remove());
 if (!HAS('is_house')) document.querySelectorAll('.col-type').forEach(node => node.remove());
+/* The model did not beat its own locality-median rule of thumb here (see
+   BASELINE_SERVED above) -- this is the plain statement of that fact and
+   why, shown ABOVE the price so nobody can miss it and mistake the rule for
+   a model output. Static per city, so it is set once here rather than in
+   render(). */
+{
+  const note = $('baselineNote');
+  if (note && BASELINE_SERVED){
+    note.classList.add('on');
+    $('baselineNoteText').textContent = 'This market is priced by the ₹/sq.ft. rule '
+      + 'of thumb, not the learned model: ' + (DATA.baseline_note || 'the model did '
+      + 'not beat the rule of thumb for this market in cross-validation') + '.';
+  }
+  const bandNote = $('bandNote');
+  if (bandNote && BASELINE_SERVED){
+    bandNote.textContent = "The band below is the rule of thumb's own "
+      + '10th-to-90th-percentile error against this data, so eight out of ten '
+      + 'listings land inside it.';
+  }
+}
 
 const el = {
   sector:$('i-sector'), bhk:$('i-bhk'), bath:$('i-bath'), age:$('i-age'),
@@ -1195,21 +1237,38 @@ function render(){
      falls back to the sector rate otherwise, same as no society at all). */
   const societyKnown = !!(q.society && q.society in SOCIETY_PPSF);
   const Macc = DATA.metrics[societyKnown ? 'model' : 'model_no_society'];
-  $('accuracyNote').innerHTML = !HAS('society_ppsf')
-    ? 'This estimate is in the <b class="num">' + Macc.mape_pct.toFixed(1) + '% MAPE</b> accuracy band.'
-    : (societyKnown
-      ? 'Society matched — this estimate is in the <b class="num">' + Macc.mape_pct.toFixed(1) + '% MAPE</b> accuracy band.'
-      : 'No society matched — this estimate is in the <b class="num">' + Macc.mape_pct.toFixed(1) + '% MAPE</b> accuracy band (name a real society above for the tighter one).');
+  if (BASELINE_SERVED){
+    $('accuracyNote').innerHTML = 'This is the ₹/sq.ft. rule of thumb (see the note above) — '
+      + 'not the <b class="num">' + Macc.mape_pct.toFixed(1) + '% MAPE</b> learned model, which loses to it here.';
+  } else {
+    $('accuracyNote').innerHTML = !HAS('society_ppsf')
+      ? 'This estimate is in the <b class="num">' + Macc.mape_pct.toFixed(1) + '% MAPE</b> accuracy band.'
+      : (societyKnown
+        ? 'Society matched — this estimate is in the <b class="num">' + Macc.mape_pct.toFixed(1) + '% MAPE</b> accuracy band.'
+        : 'No society matched — this estimate is in the <b class="num">' + Macc.mape_pct.toFixed(1) + '% MAPE</b> accuracy band (name a real society above for the tighter one).');
+  }
 
-  /* the ₹/sq.ft. rule of thumb — sector median ₹/sq.ft. × area, the same
-     formula as the sector-median baseline the model is scored against */
-  const sectorPpsf = (q.sector in SP) ? SP[q.sector] : GLOBAL_PPSF;
-  const rule = sectorPpsf * q.area / 1e7;
+  /* The OTHER number, for comparison against the one being served: the rule
+     of thumb (sector median ₹/sq.ft. × area) when the model is served, or
+     the model's own -- unused -- prediction when the rule is served. Both
+     halves of e.other come straight from estimateFor(), so this can never
+     recompute either number differently from what actually decided e.price. */
   const known = q.sector in SP;
-  $('ruleVal').textContent = cr(rule);
-  $('ruleWork').textContent = (known ? titleCase(q.sector) : 'city') + ' median ' + ppsfFmt(sectorPpsf) +
-                              ' × ' + IN(q.area) + ' sq.ft.';
-  const diff = e.price - rule;
+  const sectorPpsf = known ? SP[q.sector] : GLOBAL_PPSF;
+  const other = e.other.price;
+  $('ruleVal').textContent = cr(other);
+  if (BASELINE_SERVED){
+    $('ruleLabel').textContent = "Model's own prediction (not used)";
+    $('ruleWork').textContent = 'gradient-boosted trees' +
+      (HAS('society_ppsf') ? (societyKnown ? ', society matched' : ', no society matched') : '');
+    $('diffLabel').textContent = 'Rule minus model';
+  } else {
+    $('ruleLabel').textContent = '₹/sq.ft. rule of thumb';
+    $('ruleWork').textContent = (known ? titleCase(q.sector) : 'city') + ' median ' + ppsfFmt(sectorPpsf) +
+                                ' × ' + IN(q.area) + ' sq.ft.';
+    $('diffLabel').textContent = 'Model minus rule';
+  }
+  const diff = e.price - other;
   $('diffVal').textContent = (diff >= 0 ? '+' : '−') + '₹' + Math.abs(diff).toFixed(2) + ' Cr';
   $('impliedPpsf').textContent = ppsfFmt(e.price * 1e7 / q.area) + '/sq.ft.';
   const ref = ['HC', CITY_CODE, shortSector(q.sector).toUpperCase().replace(/\s+/g, ''),
@@ -1221,15 +1280,22 @@ function render(){
   if (HAS('amenity_count')) ref.push(q.amenity < 0 ? 'ANA' : 'A' + q.amenity);
   $('refCode').textContent = ref.join('-');
 
-  /* band ruler: model pin is fixed by the band; the rule pin moves */
+  /* band ruler: the served pin is fixed by the served band; the other pin
+     moves. Labels follow which number is actually served (see above) rather
+     than assuming "model" is always the headline one. */
+  const servedLabel = BASELINE_SERVED ? 'Estimate (₹/sq.ft. rule of thumb)' : 'Model estimate';
+  const otherLabel = BASELINE_SERVED ? "Model's own prediction (not used)" : '₹/sq.ft. rule of thumb';
+  $('pinModelLabel').textContent = servedLabel;
+  $('pinModel').title = servedLabel;
   const pos = v => 8 + 84 * Math.min(1, Math.max(0, (v - e.lo) / (e.hi - e.lo)));
   $('pinModel').style.left = pos(e.price) + '%';
-  const inBand = rule >= e.lo && rule <= e.hi;
-  $('pinRule').style.left = pos(rule) + '%';
+  const inBand = other >= e.lo && other <= e.hi;
+  $('pinRule').style.left = pos(other) + '%';
   $('pinRule').style.opacity = inBand ? '1' : '.45';
+  $('pinRule').title = otherLabel;
   $('ruleLegend').textContent = inBand
-    ? '₹/sq.ft. rule of thumb'
-    : '₹/sq.ft. rule of thumb (' + cr(rule) + ', outside the band)';
+    ? otherLabel
+    : otherLabel + ' (' + cr(other) + ', outside the band)';
 
   renderComparables(q);
   markSelectedSector(q.sector);

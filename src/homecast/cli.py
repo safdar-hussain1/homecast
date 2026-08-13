@@ -75,6 +75,12 @@ def _fmt_metrics(m: dict) -> str:
     out = [f"{'':28s} {'MAE (lakh)':>10s} {'MAPE %':>8s} {'R2':>6s}"]
     for name, r in rows:
         out.append(f"{name:28s} {r['mae_lakh']:10.1f} {r['mape_pct']:8.1f} {r['r2']:6.3f}")
+    if m.get("baseline_served"):
+        # Printed on every train/evaluate for this city, not only on
+        # `predict` -- whoever reads this table must not walk away thinking
+        # "HomeCast model" above is what a caller actually gets.
+        out.append("NOTE: this model does not beat the sector-median baseline "
+                   "-- predict/export present the baseline as the estimate.")
     return "\n".join(out)
 
 
@@ -133,7 +139,7 @@ def main(argv=None) -> int:
             (city.models_dir / "metrics.json").write_text(
                 json.dumps({k: fitted.metrics[k] for k in
                             ("model", "model_no_society", "baseline_sector",
-                             "baseline_global", "n", "n_splits", "params",
+                             "baseline_global", "baseline_served", "n", "n_splits", "params",
                              "model_name")}, indent=2))
             print(_fmt_metrics(fitted.metrics))
             print(f"Artifacts -> {city.models_dir}")
@@ -154,8 +160,19 @@ def main(argv=None) -> int:
                       luxury_score=a.luxury, age=a.age, society=a.society,
                       balcony=a.balcony)
             e = estimate(fitted, q)
-            print(f"Estimated price: Rs {e['price_cr']:.2f} Cr "
-                  f"(range {e['lo_cr']:.2f} - {e['hi_cr']:.2f} Cr)")
+            if e["served_by"] == "baseline":
+                # This city's model does not beat its own locality-median
+                # rule of thumb (see homecast.model.model_beats_baseline) --
+                # the rule IS the estimate here, not the model's number with
+                # a caveat attached. See e["note"] for why.
+                print(f"Estimated price (₹/sq.ft. rule of thumb -- the "
+                      f"learned model did not beat it for this market): "
+                      f"Rs {e['baseline_price_cr']:.2f} Cr (range "
+                      f"{e['baseline_lo_cr']:.2f} - {e['baseline_hi_cr']:.2f} Cr)")
+                print(f"note: {e['note']}")
+            else:
+                print(f"Estimated price: Rs {e['price_cr']:.2f} Cr "
+                      f"(range {e['lo_cr']:.2f} - {e['hi_cr']:.2f} Cr)")
     except (ValueError, FileNotFoundError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2

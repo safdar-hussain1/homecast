@@ -8,7 +8,8 @@ import pandas as pd
 
 from homecast.export import SAMPLE_COLUMNS
 from homecast.features import AGE_CODES, BALCONY_CODES, FURNISHING_CODES, build_features
-from homecast.model import FittedModel, predict_price
+from homecast.model import (FittedModel, baseline_served_reason,
+                            model_beats_baseline, predict_price)
 
 
 @dataclass(frozen=True)
@@ -114,9 +115,36 @@ def estimate(fitted: FittedModel, q: Query) -> dict:
     # residual (the model's biggest overestimates) maps to the LOW end of the true
     # price, and the q10 residual maps to the HIGH end. Do not "fix" this back.
     q10, q90 = fitted.band
-    return {"price_cr": price,
-            "lo_cr": price * float(np.exp(-q90)),
-            "hi_cr": price * float(np.exp(-q10))}
+    result = {"price_cr": price,
+             "lo_cr": price * float(np.exp(-q90)),
+             "hi_cr": price * float(np.exp(-q10))}
+
+    # The locality-median (₹/sq.ft. rule of thumb) alternative, computed the
+    # SAME way regardless of which one is "served" -- this is not only
+    # computed when needed, so a caller can always show "what the rule says"
+    # alongside the model, not only on the losing cities. q.sector is
+    # already validated above to be a real, known sector (not "__global__"),
+    # so this indexes fitted.encoders.sector_ppsf directly rather than
+    # falling back.
+    sector_ppsf = float(fitted.encoders.sector_ppsf[q.sector])
+    baseline_price = sector_ppsf * q.area / 1e7
+    bq10, bq90 = fitted.baseline_band
+    result["baseline_price_cr"] = baseline_price
+    result["baseline_lo_cr"] = baseline_price * float(np.exp(-bq90))
+    result["baseline_hi_cr"] = baseline_price * float(np.exp(-bq10))
+
+    # served_by is the answer to "which of the two numbers above is THE
+    # estimate for this city" -- see model_beats_baseline. A city whose model
+    # does not beat its own locality-median rule must not have the model's
+    # number presented as if it were the estimate; every caller (the CLI, the
+    # dashboard export) is expected to read this field and act on it rather
+    # than always defaulting to price_cr.
+    if model_beats_baseline(fitted.metrics):
+        result["served_by"] = "model"
+    else:
+        result["served_by"] = "baseline"
+        result["note"] = baseline_served_reason(fitted.metrics, fitted.columns)
+    return result
 
 
 def comparables(df: pd.DataFrame, q: Query, k: int = 5) -> pd.DataFrame:

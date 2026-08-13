@@ -19,6 +19,7 @@
     "mape_pct": 38.07894571055494,
     "r2": 0.2992446772151418
   },
+  "baseline_served": false,
   "n": 3600,
   "n_splits": 5,
   "params": {

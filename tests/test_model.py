@@ -4,11 +4,13 @@ import pytest
 from sklearn.ensemble import ExtraTreesRegressor, GradientBoostingRegressor
 from sklearn.model_selection import KFold
 
-from homecast.features import (FEATURE_COLUMNS, build_features,
-                               feature_columns_for, fit_encoders, target)
+from homecast.features import (ALL_FEATURE_COLUMNS, FEATURE_COLUMNS,
+                               build_features, feature_columns_for,
+                               fit_encoders, target)
 from homecast.model import (DEFAULT_PARAMS, MODELS, SOCIETY_MASK_FRACTION,
                             _SOCIETY_MASK_SEED, _mask_society,
-                            _without_society, evaluate, predict_price,
+                            _without_society, baseline_served_reason,
+                            evaluate, model_beats_baseline, predict_price,
                             train_final)
 
 
@@ -500,3 +502,114 @@ def test_public_frame_still_carries_the_full_feature_set(clean_fixture):
     Gurgaon's own feature vector."""
     fitted = train_final(clean_fixture)
     assert list(fitted.columns) == FEATURE_COLUMNS
+
+
+# --- Baseline-served: a general rule, not a per-city hack -------------------
+#
+# A model that does not beat the locality-median rule of thumb must not be
+# presented as if it did (see valuation.estimate / export.export_city, which
+# both read model_beats_baseline / the evaluate()-computed "baseline_served"
+# flag to decide what to show). The rule itself has to be provably correct on
+# its own -- a city whose model LOSES gets flagged, one that WINS does not --
+# independent of which real dataset happens to demonstrate each case.
+
+def test_model_beats_baseline_is_true_for_a_clear_win():
+    metrics = {"model": {"mape_pct": 15.3}, "baseline_sector": {"mape_pct": 17.1}}
+    assert model_beats_baseline(metrics) is True
+
+
+def test_model_beats_baseline_is_false_for_a_clear_loss():
+    metrics = {"model": {"mape_pct": 45.7}, "baseline_sector": {"mape_pct": 44.4}}
+    assert model_beats_baseline(metrics) is False
+
+
+def test_model_beats_baseline_is_false_on_a_tie():
+    """A tie is not a win. "Beats" has to mean a real improvement, not
+    "at least as good as" -- otherwise a model that ties its own baseline
+    would still get presented as if it added something."""
+    metrics = {"model": {"mape_pct": 32.4}, "baseline_sector": {"mape_pct": 32.4}}
+    assert model_beats_baseline(metrics) is False
+
+
+def _many_localities_with_a_learnable_bedroom_effect(n_localities=8, n_per=45):
+    """A city where the model has genuine signal beyond the locality median:
+    each locality has its own base rate, but ₹/sq.ft. also rises with
+    bedroom count (a real effect a locality-median rule cannot see, since it
+    only ever multiplies one number by area). Real multi-row-per-locality
+    structure, so this is a fair, non-rigged win for the model -- not a
+    frame gimmicked to trip the flag."""
+    rng = np.random.default_rng(5)
+    rows = []
+    base_rate = {f"loc{i}": rng.uniform(4000, 15000) for i in range(n_localities)}
+    for loc, rate in base_rate.items():
+        for _ in range(n_per):
+            area = rng.uniform(500, 2500)
+            bedrooms = int(rng.integers(1, 6))
+            ppsf = rate * (1 + 0.18 * (bedrooms - 3)) * rng.uniform(0.98, 1.02)
+            rows.append((loc, area, bedrooms, ppsf * area / 1e7, ppsf))
+    return pd.DataFrame(rows, columns=["sector", "area", "bedrooms", "price", "price_per_sqft"])
+
+
+def test_evaluate_flags_baseline_served_for_a_city_whose_model_loses(clean_fixture):
+    """clean_fixture is a small, noisy synthetic frame (see conftest.py) --
+    its price_per_sqft is independent random noise, so a 500-tree model
+    cross-validated on ~40 rows genuinely cannot beat the sector median.
+    That is exactly the case that must be flagged, using the SAME real
+    evaluate() run every other city's flag comes from -- not a mocked metrics
+    dict standing in for it."""
+    m = evaluate(clean_fixture)
+    assert m["model"]["mape_pct"] >= m["baseline_sector"]["mape_pct"], (
+        "fixture assumption changed: this test needs a losing model to prove "
+        "the flag actually catches one")
+    assert m["baseline_served"] is True
+
+
+def test_evaluate_does_not_flag_baseline_served_for_a_city_whose_model_wins():
+    df = _many_localities_with_a_learnable_bedroom_effect()
+    m = evaluate(df)
+    assert m["model"]["mape_pct"] < m["baseline_sector"]["mape_pct"], (
+        "fixture assumption changed: this test needs a winning model to prove "
+        "the flag does not fire on one")
+    assert m["baseline_served"] is False
+
+
+def test_fitted_model_carries_a_real_baseline_band(clean_fixture):
+    """train_final must compute an actual (q10, q90) baseline band, not
+    leave the pickle-compatibility default (0.0, 0.0) in place for a
+    freshly-trained model."""
+    fitted = train_final(clean_fixture)
+    assert fitted.baseline_band != (0.0, 0.0)
+    q10, q90 = fitted.baseline_band
+    assert q10 < q90
+
+
+def test_baseline_served_reason_names_the_missing_signal():
+    """The explanation is computed from what THIS city's feature list has and
+    lacks, not hand-written per city -- so it has to actually mention the
+    columns this synthetic city cannot supply, and the MAPE numbers that
+    triggered the flag in the first place."""
+    metrics = {"model": {"mape_pct": 45.7}, "baseline_sector": {"mape_pct": 44.4}}
+    reason = baseline_served_reason(metrics, ["area", "bedrooms", "sector_ppsf",
+                                              "sector_ppsf_mean", "sector_ppsf_std",
+                                              "sector_count"])
+    assert "45.7" in reason and "44.4" in reason
+    assert "bathrooms" in reason and "society" in reason
+    assert "area, bedrooms and locality" in reason
+
+
+def test_baseline_served_reason_states_a_tie_as_a_tie():
+    metrics = {"model": {"mape_pct": 32.4}, "baseline_sector": {"mape_pct": 32.4}}
+    reason = baseline_served_reason(metrics, ["area", "bedrooms", "sector_ppsf",
+                                              "sector_ppsf_mean", "sector_ppsf_std",
+                                              "sector_count"])
+    assert "tied" in reason
+
+
+def test_baseline_served_reason_does_not_claim_missing_signal_it_has():
+    """A city that HAS every explanatory feature and still loses must not be
+    told it is missing them -- the explanation has to read its own feature
+    list, not assume the four-private-city situation."""
+    metrics = {"model": {"mape_pct": 20.0}, "baseline_sector": {"mape_pct": 19.0}}
+    reason = baseline_served_reason(metrics, ALL_FEATURE_COLUMNS)
+    assert "no bathrooms" not in reason and "no society" not in reason
+    assert "even with the full feature set" in reason

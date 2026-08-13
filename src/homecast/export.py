@@ -14,7 +14,8 @@ import pandas as pd
 
 from homecast.cities import City
 from homecast.features import AGE_CODES, BALCONY_CODES, FURNISHING_CODES
-from homecast.model import FittedModel
+from homecast.model import (FittedModel, baseline_served_reason,
+                            model_beats_baseline)
 
 # Columns the browser's comparables table shows, when the city has them.
 # property_type is Gurgaon-only; a feed that doesn't say flat-vs-house
@@ -86,18 +87,24 @@ def export_city(fitted: FittedModel, df: pd.DataFrame, city: City) -> dict:
               .sample(n=min(400, len(df)), random_state=7))
     metrics = {k: fitted.metrics[k] for k in
                ("model", "model_no_society", "baseline_sector", "baseline_global",
-                "n", "n_splits")}
+                "n", "n_splits", "baseline_served")}
     # This city's own feature list, not the catalogue: a city that can't
     # supply furnishing/age/society has a shorter vector, and the browser
     # builds its rows by iterating feature_order (see the dashboard's
     # featureRow), so the two stay in step automatically.
     columns = list(fitted.columns)
+    # Whether this city's model beats its own locality-median rule of thumb
+    # (see model_beats_baseline). A city that does not must not have its
+    # dashboard present the model's number as THE estimate -- see the
+    # template's BASELINE_SERVED handling, which reads this exact field.
+    served = not model_beats_baseline(fitted.metrics)
     payload = {
         "city": city.display,
         "generated_n": int(len(df)),
         # False for a city whose page must not carry the hand-written
         # Gurgaon narrative (findings, methodology, hardcoded figures).
         "narrative": bool(city.public),
+        "baseline_served": served,
         "model": {"init": float(np.squeeze(fitted.model.init_.constant_)),
                   "learning_rate": float(fitted.model.learning_rate),
                   "trees": [tree_to_arrays(e[0].tree_) for e in fitted.model.estimators_]},
@@ -117,6 +124,11 @@ def export_city(fitted: FittedModel, df: pd.DataFrame, city: City) -> dict:
             "society_ppsf": {k: float(v) for k, v in fitted.encoders.society_ppsf.items()},
         },
         "band": [float(fitted.band[0]), float(fitted.band[1])],
+        # The rule's own OOF residual band (see FittedModel.baseline_band) --
+        # exported unconditionally, like "band" above, so the browser can put
+        # an honest range around the RULE's price whenever it is the one
+        # being shown, not only for a baseline_served city.
+        "baseline_band": [float(fitted.baseline_band[0]), float(fitted.baseline_band[1])],
         "ranges": fitted.ranges,
         "metrics": metrics,
         "residual_hist": {"edges": edges.tolist(), "counts": counts.tolist()},
@@ -127,6 +139,11 @@ def export_city(fitted: FittedModel, df: pd.DataFrame, city: City) -> dict:
     # recorded a basis (Gurgaon) produces a byte-identical payload to before.
     if area_basis is not None:
         payload["area_basis"] = area_basis
+    # Only present when baseline_served is true -- mirrors area_basis above:
+    # a key that is always there but usually empty invites a template to
+    # render an empty note block instead of omitting it.
+    if served:
+        payload["baseline_note"] = baseline_served_reason(fitted.metrics, columns)
     return payload
 
 

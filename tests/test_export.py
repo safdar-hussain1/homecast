@@ -239,3 +239,43 @@ def test_mixed_area_basis_in_one_frame_is_refused():
     city = City("mixed", "Mixed", Path("/x"), Path("/y"), Path("/z"), public=False)
     with pytest.raises(ValueError, match="single area_basis"):
         export_city(fitted, df, city)
+
+
+# --- baseline_served reaches the payload -----------------------------------
+#
+# A city whose model loses to its own locality-median rule must not have its
+# dashboard present the model's number as THE estimate. export_city has to
+# carry that verdict (and, when it applies, the plain-language reason) into
+# the payload the template reads -- see BASELINE_SERVED in
+# dashboard_template.html. clean_fixture (see conftest.py) is small and
+# noisy enough that its model genuinely loses to the sector baseline, so
+# `payload` below is a real losing case, not a mocked one; `sparse_payload`
+# (120 rows, real per-locality structure) is a real winning one.
+
+def test_losing_city_is_flagged_baseline_served(payload):
+    fitted, p = payload
+    assert fitted.metrics["model"]["mape_pct"] >= fitted.metrics["baseline_sector"]["mape_pct"], (
+        "fixture assumption changed: this test needs clean_fixture's model "
+        "to lose, to prove the payload actually carries a real losing verdict")
+    assert p["baseline_served"] is True
+    assert "baseline_note" in p and p["baseline_note"]
+
+
+def test_winning_city_is_not_flagged_and_carries_no_note(sparse_payload):
+    fitted, _, p = sparse_payload
+    assert fitted.metrics["model"]["mape_pct"] < fitted.metrics["baseline_sector"]["mape_pct"], (
+        "fixture assumption changed: this test needs the sparse city's model "
+        "to win, to prove the flag stays off on a real winning case")
+    assert p["baseline_served"] is False
+    assert "baseline_note" not in p
+
+
+def test_baseline_band_is_always_exported(payload, sparse_payload):
+    """Exported unconditionally (like `band`), not only for a losing city --
+    see the comment in export.py: a caller may want to show the rule's own
+    range even when the model is the one being served."""
+    _, p_lose = payload
+    _, _, p_win = sparse_payload
+    for p in (p_lose, p_win):
+        assert "baseline_band" in p and len(p["baseline_band"]) == 2
+        assert p["baseline_band"][0] <= p["baseline_band"][1]

@@ -130,6 +130,65 @@ def _baseline_pred(train: pd.DataFrame, test: pd.DataFrame, by_sector: bool) -> 
     return ppsf * test["area"].to_numpy() / 1e7
 
 
+def model_beats_baseline(metrics: dict) -> bool:
+    """Whether the learned model's headline MAPE is a genuine win over this
+    city's locality-median (sector) rule of thumb -- the same "agent quotes
+    Rs/sq.ft." rule a buyer could apply with no model at all.
+
+    A TIE does not count as beating it: "beats" means a real win, not
+    "at least as good as". A model that only ties or loses has no business
+    being presented as the estimate (see baseline_served in evaluate() and
+    baseline_served_reason below) -- this is the one place that decision is
+    made, so every caller (CLI, dashboard export, tests) reads the same
+    verdict instead of each re-deriving its own threshold.
+
+    Takes a plain metrics dict (not a FittedModel) on purpose: this is pure
+    and directly testable against a synthetic {"model": ..., "baseline_sector":
+    ...} dict, without needing to fit an estimator to prove the rule itself.
+    """
+    return metrics["model"]["mape_pct"] < metrics["baseline_sector"]["mape_pct"]
+
+
+# Catalogue features beyond the always-present core (area, bedrooms, and the
+# locality encodings -- see features.CORE_FEATURE_COLUMNS) that could give a
+# model real signal a locality-median rule cannot already capture on its own.
+# Listed here, once, with the plain-English word each reads as in a sentence,
+# so baseline_served_reason can explain what a losing city's feed is missing
+# without hardcoding that explanation per city.
+_EXPLANATORY_FEATURES = (
+    ("bathrooms", "bathrooms"), ("society_ppsf", "society"),
+    ("furnishing_code", "furnishing"), ("age_code", "age"),
+    ("balcony_code", "balcony count"), ("is_house", "property type"),
+    ("luxury_score", "amenity score"), ("amenity_count", "amenity count"),
+    ("is_resale", "resale status"),
+)
+
+
+def baseline_served_reason(metrics: dict, columns) -> str:
+    """Plain-language explanation of why a city's estimate falls back to the
+    locality-median rule of thumb instead of the learned model.
+
+    General on purpose, like model_beats_baseline above: derived from this
+    city's OWN metrics and its OWN feature list (never its name or key), so a
+    future city that also loses to its baseline gets an accurate, specific
+    reason automatically instead of the four cities checked at the time this
+    was written getting hand-written prose that silently goes stale for a
+    fifth.
+    """
+    cols = set(columns)
+    have = [label for f, label in _EXPLANATORY_FEATURES if f in cols]
+    missing = [label for f, label in _EXPLANATORY_FEATURES if f not in cols]
+    m, b = metrics["model"]["mape_pct"], metrics["baseline_sector"]["mape_pct"]
+    verdict = "tied" if abs(m - b) < 1e-9 else "lost to"
+    reason = (f"the learned model {verdict} the ₹/sq.ft. rule of thumb "
+             f"for this market ({m:.1f}% MAPE vs {b:.1f}% for the rule)")
+    if not missing:
+        return reason + " even with the full feature set available for this city"
+    signal = "area, bedrooms and locality" + (f", {', '.join(have)}" if have else "")
+    return (reason + f" -- the available columns are only {signal} "
+            f"(no {', '.join(missing)})")
+
+
 def evaluate(df: pd.DataFrame, model: str = "default", n_splits: int = 5,
              columns: list[str] | None = None) -> dict:
     df = df.reset_index(drop=True)
@@ -161,11 +220,23 @@ def evaluate(df: pd.DataFrame, model: str = "default", n_splits: int = 5,
     actual = df["price"].to_numpy(dtype=float)
     out = {k: _metrics(actual, v) for k, v in oof.items()}
     out["residuals_log"] = (np.log(oof["model"]) - np.log(actual)).tolist()
+    # Same out-of-fold construction as the model's own residuals, for the
+    # locality-median rule instead -- so a caller can build an honest
+    # confidence band around the RULE's price when the rule, not the model,
+    # is what gets shown (see baseline_served below and FittedModel.baseline_band).
+    out["baseline_residuals_log"] = (np.log(oof["baseline_sector"]) - np.log(actual)).tolist()
     out["n"] = len(df)
     out["model_name"] = model
     out["params"] = MODELS[model].get_params()
     out["n_splits"] = n_splits
     out["columns"] = list(columns)
+    # Whether this city's page/CLI output should present the model's own
+    # number, or fall back to presenting the locality-median rule of thumb as
+    # THE estimate (see model_beats_baseline / baseline_served_reason). Computed
+    # here, once, from this same evaluate() run, so every consumer (CLI,
+    # export payload, metrics.json) reads one shared answer instead of each
+    # re-deriving its own opinion about what "beats" means.
+    out["baseline_served"] = not model_beats_baseline(out)
     return out
 
 
@@ -188,6 +259,15 @@ class FittedModel:
     # Defaults to the Gurgaon 13 so a model pickled before this field existed
     # still loads.
     columns: tuple[str, ...] = tuple(FEATURE_COLUMNS)
+    # (q10, q90) of the locality-median rule's own OOF log residuals -- the
+    # same construction as `band` above, but for the rule instead of the
+    # model. Exists so a caller can put an honest range around the RULE's
+    # price when a city is baseline_served and the rule, not the model, is
+    # being presented as the estimate (see valuation.estimate). Defaults to
+    # (0.0, 0.0) so a model pickled before this field existed still loads;
+    # that default is never reached for a freshly trained model, which always
+    # gets a real band computed below.
+    baseline_band: tuple = (0.0, 0.0)
 
 
 def train_final(df: pd.DataFrame, model: str = "default") -> FittedModel:
@@ -200,9 +280,12 @@ def train_final(df: pd.DataFrame, model: str = "default") -> FittedModel:
     est.fit(Xfull, target(df))
     res = np.asarray(metrics["residuals_log"])
     band = (float(np.quantile(res, 0.10)), float(np.quantile(res, 0.90)))
+    baseline_res = np.asarray(metrics["baseline_residuals_log"])
+    baseline_band = (float(np.quantile(baseline_res, 0.10)),
+                     float(np.quantile(baseline_res, 0.90)))
     ranges = {c: [float(df[c].min()), float(df[c].max())]
               for c in RANGE_COLUMNS if c in df.columns}
-    return FittedModel(est, enc, band, ranges, metrics, tuple(columns))
+    return FittedModel(est, enc, band, ranges, metrics, tuple(columns), baseline_band)
 
 
 def predict_price(fitted: FittedModel, X: pd.DataFrame) -> np.ndarray:

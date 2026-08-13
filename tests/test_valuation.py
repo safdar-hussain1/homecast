@@ -130,6 +130,62 @@ def society_signal_fixture() -> pd.DataFrame:
         "age_possession": "New Property",
     })
 
+# --- served_by: which number is THE estimate ------------------------------
+#
+# A city whose model does not beat its own locality-median rule must have
+# the rule presented as the estimate, not the model's own number (see
+# homecast.model.model_beats_baseline). clean_fixture's model (see
+# conftest.py) is small and noisy enough that it genuinely loses to the
+# sector baseline -- this is a real losing case, not a mocked metrics dict.
+
+def test_losing_model_is_served_by_the_baseline(fitted):
+    from homecast.model import model_beats_baseline
+    assert not model_beats_baseline(fitted.metrics), (
+        "fixture assumption changed: this test needs clean_fixture's model "
+        "to lose, to prove estimate() actually falls back for a real case")
+    e = estimate(fitted, q())
+    assert e["served_by"] == "baseline"
+    assert e["price_cr"] > 0                       # the model number is still there...
+    assert "note" in e and e["note"]
+    # ...but baseline_price_cr, not price_cr, is what a caller must present
+    # as THE estimate -- see cli.py's predict command, which reads this.
+    assert e["baseline_price_cr"] > 0
+    assert e["baseline_lo_cr"] < e["baseline_price_cr"] < e["baseline_hi_cr"]
+
+
+@pytest.fixture()
+def winning_fixture():
+    """A real, non-rigged case where the model beats the baseline: several
+    localities, each with its own base rate, plus a genuine bedroom-driven
+    ₹/sq.ft. effect the locality-median rule cannot see (it only ever
+    multiplies one number by area)."""
+    rng = np.random.default_rng(5)
+    rows = []
+    base_rate = {f"loc{i}": rng.uniform(4000, 15000) for i in range(8)}
+    for loc, rate in base_rate.items():
+        for _ in range(45):
+            area = rng.uniform(500, 2500)
+            bedrooms = int(rng.integers(1, 6))
+            ppsf = rate * (1 + 0.18 * (bedrooms - 3)) * rng.uniform(0.98, 1.02)
+            rows.append((loc, area, bedrooms, ppsf * area / 1e7, ppsf))
+    df = pd.DataFrame(rows, columns=["sector", "area", "bedrooms", "price", "price_per_sqft"])
+    return train_final(df)
+
+
+def test_winning_model_is_served_by_itself(winning_fixture):
+    from homecast.model import model_beats_baseline
+    assert model_beats_baseline(winning_fixture.metrics), (
+        "fixture assumption changed: this test needs the model to win, to "
+        "prove served_by stays 'model' on a real winning case")
+    e = estimate(winning_fixture, Query(sector="loc0", property_type="flat",
+                                        bedrooms=3, bathrooms=2, area=1200.0,
+                                        furnishing="semi-furnished", luxury_score=50))
+    assert e["served_by"] == "model"
+    assert "note" not in e
+    # the model's own band is unaffected by served_by -- still price_cr's band
+    assert e["lo_cr"] < e["price_cr"] < e["hi_cr"]
+
+
 def test_known_society_changes_the_prediction(society_signal_fixture):
     """society_ppsf is a real, informative feature: naming the actual society
     must move the prediction toward that society's price level (otherwise the
