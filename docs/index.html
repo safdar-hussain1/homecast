@@ -111,8 +111,7 @@ h3{font-size:1rem; font-weight:600; line-height:1.35}
   border:1px solid var(--line); background:var(--surface); color:var(--ink-2);
 }
 .city[aria-pressed="true"]{background:var(--ink); border-color:var(--ink); color:var(--plane)}
-.city[disabled]{cursor:not-allowed; opacity:.55; background:transparent; border-style:dashed}
-.city[disabled]::after{content:" · soon"; color:var(--ink-3); font-size:11px}
+a.city{display:inline-flex; align-items:center}
 .tbtn{
   display:inline-flex; align-items:center; gap:7px; border:1px solid var(--line); background:var(--surface);
   color:var(--ink-2); border-radius:999px; padding:7px 12px; cursor:pointer;
@@ -149,6 +148,12 @@ section{padding-block:clamp(38px,5vw,64px)}
 h1.display{font-size:clamp(2.05rem,4.7vw,3.2rem); margin:10px 0 12px}
 h1 .hl{color:var(--s1)}
 .hero-head p{color:var(--ink-2); font-size:clamp(15px,1.3vw,16.5px); max-width:58ch}
+.note-block{
+  margin-top:14px; padding:11px 14px; border-radius:10px; max-width:62ch;
+  background:var(--inset); border:1px solid var(--line); color:var(--ink-2) !important;
+  font-size:13.5px !important; line-height:1.55;
+}
+.note-block strong{color:var(--ink); font-weight:600}
 
 .estimator{display:grid; grid-template-columns:minmax(0,1.08fr) minmax(340px,.92fr); gap:26px; align-items:start}
 .panel{background:var(--surface); border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow)}
@@ -390,9 +395,7 @@ footer .mono{font-size:12px; color:var(--ink-3)}
     <div class="cities" role="group" aria-label="City">
       <span class="lab">City</span>
       <button class="city" type="button" aria-pressed="true">Gurgaon</button>
-      <button class="city" type="button" disabled>Bengaluru</button>
-      <button class="city" type="button" disabled>Hyderabad</button>
-      <button class="city" type="button" disabled>Mumbai</button>
+      <a class="city" href="mailto:safdar.eryx@gmail.com?subject=HomeCast%20-%20other%20city" style="text-decoration:none">Other cities on request →</a>
     </div>
     <button class="tbtn" type="button" id="themeBtn" aria-label="Switch colour theme">
       <svg class="i-light" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.6M12 18.9v2.6M2.5 12h2.6M18.9 12h2.6M5.2 5.2l1.9 1.9M16.9 16.9l1.9 1.9M18.8 5.2l-1.9 1.9M7.1 16.9l-1.9 1.9"/></svg>
@@ -410,9 +413,15 @@ footer .mono{font-size:12px; color:var(--ink-3)}
     <div class="hero-head">
       <p class="eyebrow">Gurgaon · 3,600 cleaned listings · the model runs in this page</p>
       <h1 class="display">Agents quote <span class="hl">₹/sq.ft.</span><br>HomeCast quotes a price.</h1>
-      <p>Describe a property and it is priced right here: all 300 trees ship with the page, so your inputs
+      <p>Describe a property and it is priced right here: all 500 trees ship with the page, so your inputs
          never leave the browser. You get the estimate, the ₹/sq.ft. rule of thumb it is benchmarked against,
          and an honest range around it.</p>
+      <p class="note-block">
+        <strong>Read this before the number below:</strong> these listings are <strong>asking prices</strong>,
+        not confirmed sales — sellers, not buyers, set them. And the data is a single undated snapshot first
+        collected <strong>2025-08-23</strong>, not a live feed — prices reflect that market, not today's.
+        Government registration data would fix both and is the intended upgrade; it isn't wired up yet.
+      </p>
     </div>
 
     <div class="estimator">
@@ -485,7 +494,7 @@ footer .mono{font-size:12px; color:var(--ink-3)}
       <div class="slip" id="slip">
         <div class="slip-top">
           <span class="t">Valuation slip</span>
-          <span class="t">Gurgaon · <b>GBR&nbsp;300</b></span>
+          <span class="t">Gurgaon · <b>GBR&nbsp;500</b></span>
         </div>
         <p class="slip-spec mono" id="slipSpec">—</p>
         <div class="slip-body">
@@ -493,6 +502,7 @@ footer .mono{font-size:12px; color:var(--ink-3)}
           <p class="figure" id="figure" role="status" aria-live="polite">
             <span class="cur">₹</span><span id="figVal">—</span><span class="unit">Cr</span>
           </p>
+          <p class="fig-sub" id="accuracyNote">—</p>
           <p class="fig-sub">The band below is the model's 10th-to-90th-percentile error, so eight out of ten
              listings land inside it.</p>
 
@@ -604,14 +614,15 @@ footer .mono{font-size:12px; color:var(--ink-3)}
         <h3>Flats and houses barely share a price scale</h3>
         <p>The cleaned dataset holds <b>2,799 flats</b> and <b>801 houses</b>. Median flat: <b>₹1.39 Cr</b>.
            Median house: <b>₹4.25 Cr</b> — about <b>3.1×</b> more. That gap is why <em>is_house</em> earns
-           8.5% of the model's importance despite being a single 0/1 flag.</p>
+           4.8% of the model's importance despite being a single 0/1 flag.</p>
       </div>
       <div class="finding">
-        <p class="eyebrow">Location</p>
-        <h3>Location is the second lever, not the first</h3>
+        <p class="eyebrow">Location and community</p>
+        <h3>Two location signals, not one</h3>
         <p>Median prices across the 45 well-covered sectors run from <b>₹0.41 Cr</b> to <b>₹12.5 Cr</b> — a
-           <b>30×</b> spread end to end. Yet the sector's ₹/sq.ft. carries <b>19.5%</b> of the model's importance against
-           area's <b>53.7%</b>. Where you buy sets the rate; how much you buy sets the bill.</p>
+           <b>30×</b> spread end to end. The sector's ₹/sq.ft. carries <b>5.5%</b> of the model's importance and
+           the housing society's own ₹/sq.ft. — a much finer-grained location signal — carries <b>14.8%</b>,
+           right behind area's <b>57.6%</b>. Which building you're in matters almost as much as which sector.</p>
       </div>
       <div class="finding">
         <p class="eyebrow">Simpson's paradox</p>
@@ -625,9 +636,10 @@ footer .mono{font-size:12px; color:var(--ink-3)}
       <div class="finding">
         <p class="eyebrow">Baselines</p>
         <h3>The rule of thumb gets two-thirds of the way</h3>
-        <p>Pricing by sector-median ₹/sq.ft. × area explains <b>65.3%</b> of the variance on its own. A flat
-           city-wide ₹/sq.ft. explains only <b>29.9%</b>. The model reaches <b>80.6%</b> — the remaining lift
-           comes from size, type and fit-out, not from knowing the sector better.</p>
+        <p>Pricing by sector-median ₹/sq.ft. × area explains <b>65.3%</b> of the variance (R²) on its own. A flat
+           city-wide ₹/sq.ft. explains only <b>29.9%</b>. The model reaches <b>82.5%</b> with a society matched,
+           <b>81.1%</b> without one — the remaining lift comes from size, type, fit-out and community, not from
+           knowing the sector better.</p>
       </div>
     </div>
   </div>
@@ -638,12 +650,14 @@ footer .mono{font-size:12px; color:var(--ink-3)}
   <div class="wrap">
     <div class="sec-head"><span class="eyebrow">Model card</span><h2 class="display">How good is the number?</h2></div>
     <p class="sec-note">Every figure below is out-of-fold from 5-fold cross-validation on all 3,600 listings. The sector
-       ₹/sq.ft. encoding is re-learned inside each training fold, so no fold ever sees its own test prices.</p>
+       and society encodings are re-learned inside each training fold, so no fold ever sees its own test prices.
+       The three tiles below are the <b>society-given</b> number — the model also ships a second, honest number for
+       when no society is supplied (the default): see the full table underneath.</p>
 
     <div class="tiles-stat">
-      <div class="stat"><p class="k">Mean absolute error</p><p class="v" id="m-mae">—<small> lakh</small></p><p class="d" id="d-mae">—</p></div>
-      <div class="stat"><p class="k">Mean absolute % error</p><p class="v" id="m-mape">—<small>%</small></p><p class="d" id="d-mape">—</p></div>
-      <div class="stat"><p class="k">R² on price</p><p class="v" id="m-r2">—</p><p class="d" id="d-r2">—</p></div>
+      <div class="stat"><p class="k">Mean absolute error <small>(society given)</small></p><p class="v" id="m-mae">—<small> lakh</small></p><p class="d" id="d-mae">—</p></div>
+      <div class="stat"><p class="k">Mean absolute % error <small>(society given)</small></p><p class="v" id="m-mape">—<small>%</small></p><p class="d" id="d-mape">—</p></div>
+      <div class="stat"><p class="k">R² on price <small>(society given)</small></p><p class="v" id="m-r2">—</p><p class="d" id="d-r2">—</p></div>
     </div>
 
     <div class="cards">
@@ -675,10 +689,11 @@ footer .mono{font-size:12px; color:var(--ink-3)}
         <p class="sub">mean signed log error by price quintile · positive means the model asked too much</p>
         <p style="font-size:14.5px; color:var(--ink-2); max-width:78ch">
           The error is not evenly spread. Sorted into price fifths, the mean signed log error runs
-          <b class="num">+0.129</b> → <b class="num">+0.033</b> → <b class="num">−0.001</b> → <b class="num">−0.033</b> → <b class="num">−0.129</b>,
-          monotonically. The model <strong>overprices the cheapest homes and underprices the most expensive</strong> — the
+          <b class="num">+0.110</b> → <b class="num">+0.022</b> → <b class="num">+0.008</b> → <b class="num">−0.016</b> → <b class="num">−0.088</b>,
+          trending down across the range. The model <strong>overprices the cheapest homes and underprices the most expensive</strong> — the
           classic pull toward the middle of a log-target regression. The cheapest fifth is also the least accurate in
-          percentage terms, at <b class="num">27.6%</b> MAPE against the overall <b class="num">21.4%</b>.
+          percentage terms, at <b class="num">24.8%</b> MAPE against the overall <b class="num">18.4%</b> (society given) /
+          <b class="num">19.9%</b> (society not given).
           Treat the estimate as weakest under about ₹1 crore and above about ₹10 crore.
         </p>
       </div>
@@ -705,24 +720,26 @@ footer .mono{font-size:12px; color:var(--ink-3)}
       </div>
       <div class="step">
         <h3>Engineer</h3>
-        <p>Eight features. The sector becomes its median ₹/sq.ft. — a target encoding, so it is re-learned
-           inside each training fold rather than once up front.</p>
+        <p>Thirteen features, including sector and society target encodings — both re-learned inside each
+           training fold rather than once up front, and society is deliberately masked out of ~50% of training
+           rows so the model degrades gracefully when a real query doesn't supply one.</p>
       </div>
       <div class="step">
         <h3>Train</h3>
-        <p>Gradient-boosted regression on log price. <code>n_estimators 300 · max_depth 3 · learning_rate 0.06
+        <p>Gradient-boosted regression on log price. <code>n_estimators 500 · max_depth 5 · learning_rate 0.05
            · subsample 0.9 · seed 7</code>. No tuning: the defaults already beat both baselines.</p>
       </div>
       <div class="step">
         <h3>Evaluate</h3>
         <p>5-fold cross-validation against the two rules an agent would otherwise use — sector-median ₹/sq.ft.
-           × area, and city-median ₹/sq.ft. × area. The 10th–90th percentile of the log errors becomes the band:
-           −27.4% to +36.7% around the estimate. Near-symmetric in log space; the lopsided percentages are just
-           what exponentiating a symmetric log interval does.</p>
+           × area, and city-median ₹/sq.ft. × area — reported both with and without a society supplied at
+           predict time, since real users mostly don't have one. The 10th–90th percentile of the log errors
+           becomes the band: −23.4% to +27.4% around the estimate. Near-symmetric in log space; the lopsided
+           percentages are just what exponentiating a symmetric log interval does.</p>
       </div>
       <div class="step">
         <h3>Ship</h3>
-        <p>All 300 trees export to JSON as plain arrays. This page walks them in about ten lines of JavaScript;
+        <p>All 500 trees export to JSON as plain arrays. This page walks them in about ten lines of JavaScript;
            a test asserts that walker matches scikit-learn to 1e-9, so the page can never drift from the model.</p>
       </div>
     </div>
@@ -733,7 +750,7 @@ footer .mono{font-size:12px; color:var(--ink-3)}
 
 <footer>
   <div class="wrap">
-    <span>Built by Safdar Hussain · Gurgaon live, more cities in the pipeline</span>
+    <span>Built by Safdar Hussain · Gurgaon live, other cities available on request</span>
     <span class="mono" id="footStamp">—</span>
     <a href="https://github.com/safdar-hussain1/homecast">github.com/safdar-hussain1/homecast</a>
   </div>
@@ -939,6 +956,18 @@ function render(){
                                q.society ? titleCase(q.society) : 'society not given',
                                q.balcony ? q.balcony + ' balconies' : 'balconies not given'].join(' · ');
 
+  /* Honesty gap: which accuracy regime this exact estimate falls in. The
+     model is trained with society masked ~50% of the time so it degrades
+     gracefully, but the two regimes are still genuinely different accuracy
+     -- never show only the flattering one. A society is only "really known"
+     here if it matches something the model has actually seen (society_ppsf
+     falls back to the sector rate otherwise, same as no society at all). */
+  const societyKnown = !!(q.society && q.society in SOCIETY_PPSF);
+  const Macc = DATA.metrics[societyKnown ? 'model' : 'model_no_society'];
+  $('accuracyNote').innerHTML = (societyKnown
+    ? 'Society matched — this estimate is in the <b class="num">' + Macc.mape_pct.toFixed(1) + '% MAPE</b> accuracy band.'
+    : 'No society matched — this estimate is in the <b class="num">' + Macc.mape_pct.toFixed(1) + '% MAPE</b> accuracy band (name a real society above for the tighter one).');
+
   /* the ₹/sq.ft. rule of thumb — sector median ₹/sq.ft. × area, the same
      formula as the sector-median baseline the model is scored against */
   const sectorPpsf = (q.sector in SP) ? SP[q.sector] : GLOBAL_PPSF;
@@ -1057,7 +1086,8 @@ $('d-mape').innerHTML = '−' + (M.baseline_sector.mape_pct - M.model.mape_pct).
 $('d-r2').innerHTML = '+' + (M.model.r2 - M.baseline_sector.r2).toFixed(3) + ' <span>vs the ₹/sq.ft. rule</span>';
 
 const mtb = document.querySelector('#metricsTable tbody');
-[['HomeCast model', 'gradient-boosted trees on log price', M.model, true],
+[['HomeCast model — society given', 'gradient-boosted trees on log price, society matched', M.model, true],
+ ['HomeCast model — no society given', 'the default: same model, society withheld', M.model_no_society, false],
  ['Sector-median ₹/sq.ft. × area', 'the rule of thumb every agent uses', M.baseline_sector, false],
  ['City-median ₹/sq.ft. × area', 'one rate for all of Gurgaon', M.baseline_global, false]
 ].forEach(([name, sub, m, me]) => {

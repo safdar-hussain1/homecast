@@ -24,8 +24,18 @@ dressed up as a fact.
 The repository's `LICENSE` (MIT) covers the **code only**. The CSV is
 third-party listing content and carries no licence grant from this project.
 It is included for study and reproduction; check the originating portal's
-terms before putting it to any other use. All prices are **asking prices** as
-listed, not confirmed transaction prices.
+terms before putting it to any other use.
+
+Two things to read every number in this file, and every number derived from
+it, with:
+
+- **All prices are asking prices, not transactions.** Nobody is confirmed to
+  have paid these amounts — they are what a seller listed the property for.
+- **This is a single, undated snapshot.** There is no listing-date column.
+  The file was first committed to this repository on **2025-08-23**; it
+  reflects that market, not today's. Government registration/stamp-duty data
+  would fix both of these — dated, transaction-level records — and is the
+  intended upgrade path.
 
 Units: `price` is in **₹ crore** (1 crore = ₹10,000,000), `price_per_sqft` is
 in **₹**, and every area column is in **sq. ft.**
@@ -73,3 +83,16 @@ documented separately in `reports/MODEL_CARD.md`.
 | Unit-error outliers (e.g. a listing with an implausible sq.ft./₹ figure) | 60 rows | trimmed outside the 0.5th-99.5th percentile of `price_per_sqft` and `area` |
 | Missing area breakdowns (`super_built_up_area`, `built_up_area`, `carpet_area`) | roughly half of rows each | kept as optional attributes (portal-side optional fields), not imputed |
 | `agePossession = "Undefined"` | 333 rows | treated as missing |
+
+## Area basis (read before joining any other city's data to this one)
+
+Gurgaon-area listings on major portals are conventionally quoted on a
+**super-built-up** basis, and this file does not record a distinct basis
+column for that reason. Other Indian metros are not consistent with this —
+Mumbai listings, for instance, commonly quote **carpet area** instead — and
+carpet vs. super-built-up are **not interconvertible** without knowing the
+building's loading factor. `homecast ingest` (`src/homecast/ingest.py`)
+requires every new city's ingestion config to declare its `area_basis`
+explicitly and stamps it onto every ingested row for exactly this reason:
+never assume, and never silently compare, `price_per_sqft` across cities
+without checking this first.
