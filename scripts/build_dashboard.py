@@ -40,8 +40,9 @@ def build(city: str = "gurgaon",
             f"found {html.count(PLACEHOLDER)}")
 
     payload = json.loads(model_path.read_text(encoding="utf-8"))
-    for key in ("city", "model", "feature_order", "encodings", "band", "ranges",
-                "metrics", "residual_hist", "sectors", "sample"):
+    for key in ("city", "model", "feature_order", "feature_importances",
+                "encodings", "band", "ranges", "metrics", "residual_hist",
+                "sectors", "sample"):
         if key not in payload:
             raise ValueError(f"{model_path} is missing the '{key}' key")
 

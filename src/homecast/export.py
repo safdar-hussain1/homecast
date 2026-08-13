@@ -44,6 +44,9 @@ def export_city(fitted: FittedModel, df: pd.DataFrame, city: City) -> dict:
                   "learning_rate": float(fitted.model.learning_rate),
                   "trees": [tree_to_arrays(e[0].tree_) for e in fitted.model.estimators_]},
         "feature_order": list(FEATURE_COLUMNS),
+        # keyed by feature name so the dashboard never carries its own copy
+        "feature_importances": {name: float(v) for name, v in
+                                zip(FEATURE_COLUMNS, fitted.model.feature_importances_)},
         "encodings": {"furnishing": FURNISHING_CODES, "age": AGE_CODES,
                       # includes the internal "__global__" fallback key alongside
                       # real sector names -- don't iterate this as "all sectors"

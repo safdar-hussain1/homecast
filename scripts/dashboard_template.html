@@ -1031,15 +1031,24 @@ const mtb = document.querySelector('#metricsTable tbody');
 const css = () => getComputedStyle(document.documentElement);
 const C = n => css().getPropertyValue(n).trim();
 
-/* Feature importances are reported by the trained estimator; the four the
-   model actually leans on, with the remaining four rolled up. */
-const IMPORTANCES = [
-  ['Built-up area', 0.537],
-  ['Sector ₹/sq.ft.', 0.195],
-  ['Bathrooms', 0.157],
-  ['House (not flat)', 0.085],
-  ['Other four features', 0.026]
-];
+/* Feature importances come straight from the payload — the trained estimator's
+   own feature_importances_, keyed by feature name — so this page can never
+   carry a stale copy. Show the four the model leans on, roll up the rest. */
+const IMP_LABELS = {
+  area: 'Built-up area', sector_ppsf: 'Sector ₹/sq.ft.', bathrooms: 'Bathrooms',
+  is_house: 'House (not flat)', bedrooms: 'Bedrooms', furnishing_code: 'Furnishing',
+  luxury_score: 'Amenity score', age_code: 'Age / possession'
+};
+const NUMWORD = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight'];
+const IMPORTANCES = (() => {
+  const ranked = DATA.feature_order
+    .map(k => [IMP_LABELS[k] || k, DATA.feature_importances[k]])
+    .sort((a, b) => b[1] - a[1]);
+  const top = ranked.slice(0, 4), rest = ranked.slice(4);
+  if (rest.length) top.push(['Other ' + (NUMWORD[rest.length] || rest.length) + ' features',
+                             rest.reduce((s, r) => s + r[1], 0)]);
+  return top;
+})();
 
 function bandLines(){
   return {

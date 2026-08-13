@@ -31,6 +31,16 @@ def test_payload_is_json_serializable(payload, tmp_path):
     assert round_tripped["feature_order"][0] == "area"
     assert len(round_tripped["model"]["trees"]) == p["model"]["trees"].__len__()
 
+def test_feature_importances_match_the_fitted_model(payload):
+    """The dashboard reads these instead of hardcoding them, so they must be
+    the estimator's own numbers, aligned to feature_order."""
+    fitted, p = payload
+    imp = p["feature_importances"]
+    assert list(imp) == p["feature_order"]
+    want = dict(zip(p["feature_order"], fitted.model.feature_importances_))
+    assert imp == {name: float(v) for name, v in want.items()}
+    assert sum(imp.values()) == pytest.approx(1.0)
+
 def test_no_nan_in_payload(payload, tmp_path):
     _, p = payload
     write_export(p, tmp_path / "x.json")   # allow_nan=False raises on NaN
