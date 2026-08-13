@@ -91,8 +91,10 @@ The band is asymmetric — the model's misses skew larger on the upside than
 the downside, in relative terms — see the error structure in Methodology.
 
 Model parameters: `n_estimators=300, max_depth=3, learning_rate=0.06,
-subsample=0.9, random_state=7`. These are the library's untouched defaults —
-they beat both baselines on the first attempt, so no tuning grid was needed.
+subsample=0.9, random_state=7`. These are HomeCast's own default parameters
+(not scikit-learn's), chosen up front and never tuned against the results —
+they beat both baselines on the first run, so the planned learning-rate x
+max-depth grid was never needed.
 
 Full detail: [`reports/MODEL_CARD.md`](reports/MODEL_CARD.md).
 

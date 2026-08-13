@@ -58,8 +58,9 @@ once per fold in `src/homecast/model.py:evaluate`.
 
 ## Model parameters
 
-`sklearn.ensemble.GradientBoostingRegressor`, untouched library defaults from
-the project's `DEFAULT_PARAMS`:
+`sklearn.ensemble.GradientBoostingRegressor`, with HomeCast's own project
+defaults (`DEFAULT_PARAMS` in `src/homecast/model.py` — not scikit-learn's
+library defaults), chosen up front and never tuned against the results:
 
 ```
 n_estimators   = 300
