@@ -74,7 +74,7 @@ img,canvas{max-width:100%}
 a{color:var(--accent); text-underline-offset:3px; text-decoration-thickness:1px}
 a:hover{text-decoration-thickness:2px}
 :focus-visible{outline:2px solid var(--s1); outline-offset:2px; border-radius:3px}
-.wrap{width:100%; max-width:1180px; margin-inline:auto; padding-inline:clamp(16px,3.4vw,32px)}
+.wrap{width:100%; max-width:1400px; margin-inline:auto; padding-inline:clamp(16px,3vw,40px)}
 .mono{font-family:"DM Mono", ui-monospace, SFMono-Regular, Menlo, monospace}
 .num{font-variant-numeric:tabular-nums}
 .skip{position:absolute; left:-9999px; top:0; background:var(--surface); padding:10px 14px; z-index:60}
@@ -107,11 +107,43 @@ h3{font-size:1rem; font-weight:600; line-height:1.35}
 .cities .lab{font-family:"DM Mono",monospace; font-size:11px; letter-spacing:.1em;
   text-transform:uppercase; color:var(--ink-3); margin-right:2px}
 .city{
+  display:inline-flex; align-items:center; gap:7px;
   font:500 13px/1 "Public Sans",sans-serif; padding:7px 12px; border-radius:999px; cursor:pointer;
   border:1px solid var(--line); background:var(--surface); color:var(--ink-2);
 }
 .city[aria-pressed="true"]{background:var(--ink); border-color:var(--ink); color:var(--plane)}
-a.city{display:inline-flex; align-items:center}
+.city .pip{width:7px; height:7px; border-radius:50%; background:var(--good); flex:none}
+.city em{
+  font-style:normal; font-family:"DM Mono",monospace; font-size:10px; letter-spacing:.1em;
+  text-transform:uppercase; opacity:.68;
+}
+
+/* city popover — the other cities are real, but they are not served here */
+.citypop{position:relative; margin:0; border:0; padding:0}
+.citypop > summary{list-style:none}
+.citypop > summary::-webkit-details-marker{display:none}
+.citypop > summary::marker{content:""}
+.citypop .caret{width:9px; height:9px; transition:transform .15s ease}
+.citypop[open] .caret{transform:rotate(180deg)}
+.citypop[open] > summary{border-color:var(--ink-3); color:var(--ink)}
+.pop{
+  position:absolute; top:calc(100% + 9px); right:0; z-index:60; width:min(300px,calc(100vw - 32px));
+  background:var(--surface); border:1px solid var(--line); border-radius:12px;
+  box-shadow:var(--shadow); padding:14px 15px;
+}
+.pop .pop-k{font-family:"DM Mono",monospace; font-size:10.5px; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--ink-3)}
+.pop ul{list-style:none; margin:9px 0 0; padding:0; display:grid; gap:1px;
+  background:var(--hair); border:1px solid var(--hair); border-radius:8px; overflow:hidden}
+.pop li{background:var(--surface)}
+.pop li a{
+  display:flex; justify-content:space-between; align-items:baseline; gap:10px;
+  padding:8px 11px; font-size:13.5px; font-weight:500; color:var(--ink); text-decoration:none;
+}
+.pop li a:hover{background:var(--inset); color:var(--accent)}
+.pop li a span{color:var(--ink-3); font-family:"DM Mono",monospace; font-size:12px}
+.pop li a:hover span{color:var(--accent)}
+.pop .pop-note{margin-top:10px; font-size:12.5px; line-height:1.5; color:var(--ink-2)}
 .tbtn{
   display:inline-flex; align-items:center; gap:7px; border:1px solid var(--line); background:var(--surface);
   color:var(--ink-2); border-radius:999px; padding:7px 12px; cursor:pointer;
@@ -127,8 +159,10 @@ a.city{display:inline-flex; align-items:center}
 }
 
 /* ── sections ─────────────────────────────────────────────────────────── */
-section{padding-block:clamp(38px,5vw,64px)}
-#estimate{padding-top:clamp(20px,2.6vw,30px); position:relative; overflow:hidden}
+section{padding-block:clamp(30px,3.2vw,46px)}
+section + section{border-top:1px solid var(--hair)}
+#estimate{padding-top:clamp(16px,1.8vw,24px); padding-bottom:clamp(26px,2.8vw,40px);
+  position:relative; overflow:hidden}
 #estimate::before{
   content:""; position:absolute; inset:0; pointer-events:none;
   background-image:linear-gradient(var(--grid) 1px, transparent 1px),
@@ -138,24 +172,45 @@ section{padding-block:clamp(38px,5vw,64px)}
   mask-image:linear-gradient(to bottom, #000 0%, transparent 78%);
 }
 #estimate > .wrap{position:relative}
-.sec-head{display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; margin-bottom:6px}
+.sec-head{display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; margin-bottom:5px}
 .sec-head .eyebrow{padding-top:4px}
-.sec-note{color:var(--ink-2); max-width:72ch; margin-bottom:22px; font-size:15px}
+.sec-note{color:var(--ink-2); max-width:86ch; margin-bottom:18px; font-size:15px}
 .rule{height:1px; background:var(--line); border:0; margin:0}
 
 /* ── hero + estimator ─────────────────────────────────────────────────── */
-.hero-head{max-width:672px; margin-bottom:22px}
-h1.display{font-size:clamp(2.05rem,4.7vw,3.2rem); margin:10px 0 12px}
-h1 .hl{color:var(--s1)}
-.hero-head p{color:var(--ink-2); font-size:clamp(15px,1.3vw,16.5px); max-width:58ch}
-.note-block{
-  margin-top:14px; padding:11px 14px; border-radius:10px; max-width:62ch;
-  background:var(--inset); border:1px solid var(--line); color:var(--ink-2) !important;
-  font-size:13.5px !important; line-height:1.55;
+.hero{display:grid; grid-template-columns:minmax(0,1fr); gap:24px; align-items:end; margin-bottom:16px}
+@media (min-width:1080px){
+  .hero{grid-template-columns:minmax(0,1fr) minmax(320px,420px); gap:clamp(30px,3.4vw,64px)}
 }
-.note-block strong{color:var(--ink); font-weight:600}
+.hero-head{max-width:none}
+h1.display{font-size:clamp(2.05rem,4.4vw,3.45rem); margin:9px 0 12px}
+h1 .hl{color:var(--s1)}
+.hero-head p{color:var(--ink-2); font-size:clamp(15px,1.3vw,16.5px); max-width:64ch}
 
-.estimator{display:grid; grid-template-columns:minmax(0,1.08fr) minmax(340px,.92fr); gap:26px; align-items:start}
+/* the at-a-glance ledger: the slip's own accounting language, applied to the
+   project. Every figure is filled from the payload at runtime — see fillGlance() */
+.glance-head{display:flex; align-items:baseline; justify-content:space-between; gap:12px;
+  padding-bottom:7px; border-bottom:1px solid var(--line)}
+.glance-head .g-note{font-size:10.5px; color:var(--ink-3); letter-spacing:.04em}
+.ledger{display:grid}
+.lrow{display:flex; align-items:baseline; gap:9px; padding:9px 0; border-bottom:1px solid var(--hair)}
+.lrow:last-child{border-bottom:0; padding-bottom:0}
+.lrow dt{color:var(--ink-2); font-size:13px; line-height:1.35; flex:0 1 auto}
+.lrow .lead{flex:1 1 12px; min-width:10px; align-self:center;
+  border-bottom:1px dotted var(--line); height:0; transform:translateY(-2px)}
+.lrow dd{font-variant-numeric:tabular-nums; font-weight:700; font-size:16.5px;
+  letter-spacing:-.015em; white-space:nowrap; flex:none}
+.lrow dd .vs{font-weight:500; font-size:12.5px; color:var(--ink-3); letter-spacing:0}
+
+/* the honesty caveat, spanning the measure above the estimate it qualifies */
+.caveat{
+  margin:0 0 16px; padding:11px 15px; border-radius:10px;
+  background:var(--inset); border:1px solid var(--line); border-left:3px solid var(--warn);
+  color:var(--ink-2); font-size:13.5px; line-height:1.55;
+}
+.caveat strong{color:var(--ink); font-weight:600}
+
+.estimator{display:grid; grid-template-columns:minmax(0,1.06fr) minmax(360px,.94fr); gap:24px; align-items:start}
 .panel{background:var(--surface); border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow)}
 .form{padding:20px 20px 22px}
 .form-grid{display:grid; grid-template-columns:repeat(6,1fr); gap:14px 14px}
@@ -259,8 +314,8 @@ input[type="range"]::-moz-range-thumb{width:14px; height:14px; border:2.5px soli
 .ref b{color:var(--ink-2); font-weight:500}
 
 /* ── generic cards / charts ───────────────────────────────────────────── */
-.cards{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px}
-.card{background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:18px 18px 14px; min-width:0}
+.cards{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px}
+.card{background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:16px 18px 14px; min-width:0}
 .card.wide{grid-column:1/-1}
 .card h3{margin-bottom:2px}
 .card .sub{font-family:"DM Mono",monospace; font-size:11.5px; color:var(--ink-3); margin-bottom:12px; line-height:1.5}
@@ -325,8 +380,8 @@ details .scrolly{max-height:320px; overflow:auto; margin-top:10px; border:1px so
 details thead th{position:sticky; top:0; background:var(--surface)}
 
 /* ── findings ─────────────────────────────────────────────────────────── */
-.findings{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; margin-top:18px}
-.finding{background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:18px}
+.findings{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin-top:16px}
+.finding{background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:17px 18px}
 .finding .eyebrow{color:var(--s1)}
 .finding h3{margin:8px 0 7px}
 .finding p{font-size:14.5px; color:var(--ink-2)}
@@ -334,8 +389,8 @@ details thead th{position:sticky; top:0; background:var(--surface)}
 .finding b{color:var(--ink); font-weight:600; font-variant-numeric:tabular-nums}
 
 /* ── model card ───────────────────────────────────────────────────────── */
-.tiles-stat{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px; margin-bottom:18px}
-.stat{background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:18px}
+.tiles-stat{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; margin-bottom:16px}
+.stat{background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:16px 18px}
 .stat .k{font-family:"DM Mono",monospace; font-size:11px; letter-spacing:.11em; text-transform:uppercase; color:var(--ink-3)}
 .stat .v{font:700 clamp(1.8rem,3.4vw,2.4rem)/1.05 "Public Sans",sans-serif; letter-spacing:-.025em; margin-top:9px}
 .stat .v small{font-size:.42em; font-weight:600; color:var(--ink-3); letter-spacing:0}
@@ -360,9 +415,9 @@ details thead th{position:sticky; top:0; background:var(--surface)}
 .step code{font-family:"DM Mono",monospace; font-size:12px; color:var(--ink)}
 
 /* ── footer ───────────────────────────────────────────────────────────── */
-footer{border-top:1px solid var(--line); margin-top:40px}
+footer{border-top:1px solid var(--line)}
 footer .wrap{display:flex; gap:14px 28px; flex-wrap:wrap; justify-content:space-between;
-  padding-block:26px 44px; font-size:13.5px; color:var(--ink-2)}
+  padding-block:22px 34px; font-size:13.5px; color:var(--ink-2)}
 footer .mono{font-size:12px; color:var(--ink-3)}
 
 /* ── responsive ───────────────────────────────────────────────────────── */
@@ -379,7 +434,10 @@ footer .mono{font-size:12px; color:var(--ink-3)}
   .area-row{grid-template-columns:100px 1fr}
   .tiles{grid-template-columns:repeat(auto-fill,minmax(54px,1fr))}
   .chartbox,.card.wide .chartbox{height:250px}
-  .cities{margin-left:0; width:100%}
+  .cities{margin-left:0; width:100%; order:1}
+  .tbtn{margin-left:auto}
+  .lrow dd{font-size:15.5px}
+  .caveat{font-size:13px}
 }
 @media (prefers-reduced-motion:reduce){
   *{transition:none !important; animation:none !important; scroll-behavior:auto !important}
@@ -392,10 +450,26 @@ footer .mono{font-size:12px; color:var(--ink-3)}
 <header class="topbar">
   <div class="wrap">
     <div class="brand">HomeCast<span class="dot" aria-hidden="true"></span><span>price intelligence</span></div>
-    <div class="cities" role="group" aria-label="City">
+    <div class="cities" aria-label="City">
       <span class="lab">City</span>
-      <button class="city" type="button" aria-pressed="true">Gurgaon</button>
-      <a class="city" href="mailto:safdar.eryx@gmail.com?subject=HomeCast%20-%20other%20city" style="text-decoration:none">Other cities on request →</a>
+      <button class="city" type="button" aria-pressed="true"><i class="pip" aria-hidden="true"></i>Gurgaon<em>live</em></button>
+      <details class="citypop" id="citypop">
+        <summary class="city">Five more on request
+          <svg class="caret" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5"/></svg>
+        </summary>
+        <div class="pop">
+          <p class="pop-k">Available on request</p>
+          <ul>
+            <li><a href="mailto:safdar.eryx@gmail.com?subject=HomeCast%20-%20Hyderabad">Hyderabad<span aria-hidden="true">→</span></a></li>
+            <li><a href="mailto:safdar.eryx@gmail.com?subject=HomeCast%20-%20Bengaluru">Bengaluru<span aria-hidden="true">→</span></a></li>
+            <li><a href="mailto:safdar.eryx@gmail.com?subject=HomeCast%20-%20Mumbai">Mumbai<span aria-hidden="true">→</span></a></li>
+            <li><a href="mailto:safdar.eryx@gmail.com?subject=HomeCast%20-%20Delhi%20NCR">Delhi NCR<span aria-hidden="true">→</span></a></li>
+            <li><a href="mailto:safdar.eryx@gmail.com?subject=HomeCast%20-%20Amaravathi">Amaravathi<span aria-hidden="true">→</span></a></li>
+          </ul>
+          <p class="pop-note">None of these are served on this page: no data and no model for them ships with it.
+             Gurgaon is the only city live here. Pick one to ask for it — safdar.eryx@gmail.com.</p>
+        </div>
+      </details>
     </div>
     <button class="tbtn" type="button" id="themeBtn" aria-label="Switch colour theme">
       <svg class="i-light" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.6M12 18.9v2.6M2.5 12h2.6M18.9 12h2.6M5.2 5.2l1.9 1.9M16.9 16.9l1.9 1.9M18.8 5.2l-1.9 1.9M7.1 16.9l-1.9 1.9"/></svg>
@@ -410,19 +484,36 @@ footer .mono{font-size:12px; color:var(--ink-3)}
 <!-- ══ 1. hero + estimator ═══════════════════════════════════════════════ -->
 <section id="estimate">
   <div class="wrap">
-    <div class="hero-head">
-      <p class="eyebrow">Gurgaon · 3,600 cleaned listings · the model runs in this page</p>
-      <h1 class="display">Agents quote <span class="hl">₹/sq.ft.</span><br>HomeCast quotes a price.</h1>
-      <p>Describe a property and it is priced right here: all 500 trees ship with the page, so your inputs
-         never leave the browser. You get the estimate, the ₹/sq.ft. rule of thumb it is benchmarked against,
-         and an honest range around it.</p>
-      <p class="note-block">
-        <strong>Read this before the number below:</strong> these listings are <strong>asking prices</strong>,
-        not confirmed sales — sellers, not buyers, set them. And the data is a single undated snapshot first
-        collected <strong>2025-08-23</strong>, not a live feed — prices reflect that market, not today's.
-        Government registration data would fix both and is the intended upgrade; it isn't wired up yet.
-      </p>
+    <div class="hero">
+      <div class="hero-head">
+        <p class="eyebrow">Gurgaon · the model runs in this page</p>
+        <h1 class="display">Agents quote <span class="hl">₹/sq.ft.</span><br>HomeCast quotes a price.</h1>
+        <p>Describe a property and it is priced right here: all 500 trees ship with the page, so your inputs
+           never leave the browser. You get the estimate, the ₹/sq.ft. rule of thumb it is benchmarked against,
+           and an honest range around it.</p>
+      </div>
+
+      <aside class="glance" aria-label="HomeCast at a glance">
+        <div class="glance-head">
+          <span class="eyebrow">At a glance</span>
+          <span class="mono g-note">out-of-fold · 5-fold CV</span>
+        </div>
+        <dl class="ledger">
+          <div class="lrow"><dt>Cleaned listings</dt><i class="lead" aria-hidden="true"></i><dd class="num" id="g-listings">—</dd></div>
+          <div class="lrow"><dt>Sectors with ≥30 listings</dt><i class="lead" aria-hidden="true"></i><dd class="num" id="g-sectors">—</dd></div>
+          <div class="lrow"><dt>Trees running in this page</dt><i class="lead" aria-hidden="true"></i><dd class="num" id="g-trees">—</dd></div>
+          <div class="lrow"><dt>Mean abs. % error · society given / withheld</dt><i class="lead" aria-hidden="true"></i><dd class="num" id="g-mape">—</dd></div>
+          <div class="lrow"><dt>Mean error vs the ₹/sq.ft. rule</dt><i class="lead" aria-hidden="true"></i><dd class="num" id="g-mae">—</dd></div>
+        </dl>
+      </aside>
     </div>
+
+    <p class="caveat">
+      <strong>Read this before the number below:</strong> these listings are <strong>asking prices</strong>,
+      not confirmed sales — sellers, not buyers, set them. And the data is a single undated snapshot first
+      collected <strong>2025-08-23</strong>, not a live feed — prices reflect that market, not today's.
+      Government registration data would fix both and is the intended upgrade; it isn't wired up yet.
+    </p>
 
     <div class="estimator">
       <!-- inputs -->
@@ -706,7 +797,8 @@ footer .mono{font-size:12px; color:var(--ink-3)}
   <div class="wrap">
     <div class="sec-head"><span class="eyebrow">Methodology</span><h2 class="display">From raw listings to this page</h2></div>
     <p class="sec-note">Six stages, each one a command in the <code class="mono">homecast</code> CLI and each one covered by tests.
-       The city is a parameter throughout, which is why three more are already wired into the selector above.</p>
+       The city is a parameter throughout, which is why the cities in the selector above are a data question,
+       not a rewrite.</p>
     <div class="steps">
       <div class="step">
         <h3>Collect</h3>
@@ -1078,6 +1170,18 @@ DATA.sectors.forEach(s => {
 
 /* ── model card numbers, straight from the payload ────────────────────── */
 const M = DATA.metrics;
+
+/* the hero ledger — same rule as everything else on this page: no figure is
+   written into the markup, every one is read out of the exported payload */
+$('g-listings').textContent = IN(M.n);
+$('g-sectors').textContent = DATA.sectors.length;
+$('g-trees').textContent = IN(DATA.model.trees.length);
+$('g-mape').innerHTML = M.model.mape_pct.toFixed(1) + '% <span class="vs">/ ' +
+                        M.model_no_society.mape_pct.toFixed(1) + '%</span>';
+$('g-mae').innerHTML = '₹' + M.model.mae_lakh.toFixed(1) + ' <span class="vs">vs ₹' +
+                       M.baseline_sector.mae_lakh.toFixed(1) + ' lakh</span>';
+document.querySelector('.glance-head .g-note').textContent =
+  'out-of-fold · ' + M.n_splits + '-fold CV';
 $('m-mae').innerHTML = M.model.mae_lakh.toFixed(1) + '<small> lakh</small>';
 $('m-mape').innerHTML = M.model.mape_pct.toFixed(1) + '<small>%</small>';
 $('m-r2').textContent = M.model.r2.toFixed(3);
@@ -1294,6 +1398,18 @@ $('themeBtn').addEventListener('click', () => {
   render();
 });
 syncThemeLabel();
+
+/* ── city popover ─────────────────────────────────────────────────────── */
+const cityPop = $('citypop');
+document.addEventListener('click', ev => {
+  if (cityPop.open && !cityPop.contains(ev.target)) cityPop.open = false;
+});
+document.addEventListener('keydown', ev => {
+  if (ev.key === 'Escape' && cityPop.open){
+    cityPop.open = false;
+    cityPop.querySelector('summary').focus();
+  }
+});
 
 /* ── wire up ──────────────────────────────────────────────────────────── */
 [el.sector, el.bhk, el.bath, el.age, el.furn, el.balcony].forEach(c => c.addEventListener('change', render));
