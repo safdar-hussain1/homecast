@@ -95,13 +95,23 @@ def test_load_private_cities_empty_when_default_path_absent(monkeypatch, tmp_pat
 
 
 def test_public_registry_unaffected_when_private_config_absent():
-    """This IS the fresh-clone case (no private/cities.toml is committed, so
-    this repo checkout already has none) -- prove the public city is exactly
-    what it would be without the private-tier machinery at all."""
-    assert set(cities_module.CITIES) == {"gurgaon"}
+    """Prove the public city is exactly what it would be without the
+    private-tier machinery at all -- an invariant, not a snapshot of the
+    fresh-clone case. Asserting `set(CITIES) == {"gurgaon"}` would break the
+    moment a real `private/cities.toml` is configured (a legitimate,
+    supported state, not a bug), so instead assert the two things that must
+    always hold: gurgaon is present and public, and anything else in the
+    merged registry -- which can only have come from the private tier -- is
+    marked non-public."""
+    assert "gurgaon" in cities_module.CITIES
     c = get_city("gurgaon")
     assert c.display == "Gurgaon"
     assert c.public is True
+    for key, city in cities_module.CITIES.items():
+        if key != "gurgaon":
+            assert city.public is False, (
+                f"'{key}' is in CITIES but not marked private -- only gurgaon "
+                f"may be public")
 
 
 def test_load_private_cities_parses_toml(tmp_path):
