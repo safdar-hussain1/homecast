@@ -1,64 +1,110 @@
 <!DOCTYPE html>
+<!-- HomeCast — designed and built by Safdar Hussain · github.com/safdar-hussain1/homecast -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>HomeCast — Gurgaon property valuation</title>
 <meta name="description" content="Describe a Gurgaon property and get a price estimate, a confidence band, and the comparable listings behind it. The model runs in the page.">
+<meta name="author" content="Safdar Hussain">
 <meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232158d8'/%3E%3Cg fill='%23fff'%3E%3Crect x='6.5' y='6.5' width='8' height='8' rx='1.6' opacity='.42'/%3E%3Crect x='17.5' y='6.5' width='8' height='8' rx='1.6' opacity='.62'/%3E%3Crect x='6.5' y='17.5' width='8' height='8' rx='1.6' opacity='.62'/%3E%3Crect x='17.5' y='17.5' width='8' height='8' rx='1.6'/%3E%3C/g%3E%3C/svg%3E">
 <script>try{var t=localStorage.getItem('hc-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,300..800&family=DM+Mono:wght@400;500&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Sans:wdth,wght@75..100,400..700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" integrity="sha384-9nhczxUqK87bcKHh20fSQcTGD4qq5GhayNYSYWqwBkINBhOfQLg/P5HG5lF1urn4" crossorigin="anonymous"></script>
 <style>
-/* ── tokens ───────────────────────────────────────────────────────────── */
+/* ══ HomeCast — visual system ═══════════════════════════════════════════
+   Direction: a surveyor's drawing board. Gurgaon is a planned, numbered
+   grid, so the page is drafted on one: blueprint cobalt ink, a faint
+   survey grid under the two map-like moments, expanded signage type for
+   the headlines and the money, engineering mono for every label and
+   serial, and one printed paper artifact — the valuation slip — that
+   carries the whole metaphor.
+   Palette validated with the dataviz six-checks validator:
+     light  #2158d8 / #d9541f  · dark  #4a8cf0 / #e0602b  — ALL PASS.  */
+
+/* ── tokens: light is the designed default, not an inversion ──────────── */
 :root{
   color-scheme: light;
-  --plane:#e8ecf1; --surface:#fbfcfd; --inset:#f1f4f8; --slip:#ffffff;
-  --ink:#101418; --ink-2:#4a5560; --ink-3:#78838e;
-  --line:#d3dae1; --hair:#e5eaef; --ring:rgba(16,20,24,.10);
-  --accent:#1c5cab; --accent-soft:#e6eefa;
-  --s1:#2a78d6; --s2:#eb6834; --s1-fade:rgba(42,120,214,.28);
-  --good:#0f7a2e; --warn:#a5590a; --warn-bg:#fdf1e3;
-  --grid:rgba(16,20,24,.055);
-  --shadow:0 1px 2px rgba(16,20,24,.05), 0 12px 32px -18px rgba(16,20,24,.28);
-  --q0:#cde2fb; --q1:#b7d3f6; --q2:#9ec5f4; --q3:#6da7ec;
-  --q4:#3987e5; --q5:#256abf; --q6:#184f95; --q7:#0d366b;
-  --k0:#0f2138; --k1:#0f2138; --k2:#0f2138; --k3:#0f2138;
-  --k4:#0f2138; --k5:#f2f7fd; --k6:#f2f7fd; --k7:#f2f7fd;
+
+  /* type */
+  --f-display:"Archivo", ui-sans-serif, system-ui, "Helvetica Neue", sans-serif;
+  --f-body:"Instrument Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono:"IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* surfaces — plane < surface < inset, slip is the paper on top */
+  --plane:#e7ebf2; --surface:#fafbfd; --inset:#eef2f8; --slip:#ffffff;
+  --stub:#f6f8fc;
+  --ink:#0c1016; --ink-2:#465061; --ink-3:#727e8d;
+  --line:#d0d8e3; --hair:#e2e8f0; --ring:rgba(12,16,22,.10);
+
+  /* accents */
+  --accent:#1747b8; --accent-soft:#e5edfc;
+  --s1:#2158d8; --s2:#d9541f;
+  --s1-fade:rgba(33,88,216,.26); --s1-wash:rgba(33,88,216,.09);
+  --good:#0d7a34; --warn:#9a5407; --warn-bg:#fbf0e2;
+
+  /* atmosphere */
+  --grid:rgba(12,16,22,.055);
+  --glow:rgba(33,88,216,.13);
+  --paper-op:.030; --edge-hi:rgba(255,255,255,.9);
+
+  /* elevation — one logic, three steps */
+  --sh1:rgba(14,22,40,.07); --sh2:rgba(14,22,40,.20);
+  --e1:0 1px 2px var(--sh1);
+  --e2:0 1px 2px var(--sh1), 0 10px 26px -16px var(--sh2);
+  --e3:0 1px 2px var(--sh1), 0 26px 54px -26px var(--sh2);
+  --shadow:var(--e2);
+
+  /* sequential ramp — one hue, light→dark, monotonic in luminance and
+     stepped so no step lands in the L 0.16–0.23 dead zone where neither
+     a near-white nor a near-black label reaches 4.5:1. */
+  --q0:#dfeafb; --q1:#c6dbf7; --q2:#a8c8f2; --q3:#8fb6ee;
+  --q4:#6b9ce6; --q5:#4d86da; --q6:#2456ab; --q7:#143566;
+  --k0:#0b1c33; --k1:#0b1c33; --k2:#0b1c33; --k3:#0b1c33;
+  --k4:#0b1c33; --k5:#0b1c33; --k6:#eef5ff; --k7:#eef5ff;
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
     color-scheme: dark;
-    --plane:#0b0f13; --surface:#151b21; --inset:#1b232b; --slip:#19222a;
-    --ink:#eef3f8; --ink-2:#a7b4c0; --ink-3:#79868f;
-    --line:#2a343d; --hair:#212a32; --ring:rgba(255,255,255,.12);
-    --accent:#7fb0ef; --accent-soft:#182636;
-    --s1:#3987e5; --s2:#d95926; --s1-fade:rgba(57,135,229,.30);
-    --good:#3fbf5c; --warn:#e0a35c; --warn-bg:#2a2118;
+    --plane:#080b11; --surface:#121820; --inset:#19212b; --slip:#161d26;
+    --stub:#131a23;
+    --ink:#eaf0f7; --ink-2:#9fadbd; --ink-3:#727f8f;
+    --line:#28323e; --hair:#1d2630; --ring:rgba(255,255,255,.13);
+    --accent:#8ab3f7; --accent-soft:#15243a;
+    --s1:#4a8cf0; --s2:#e0602b;
+    --s1-fade:rgba(74,140,240,.30); --s1-wash:rgba(74,140,240,.10);
+    --good:#42c163; --warn:#e0a35c; --warn-bg:#291f16;
     --grid:rgba(255,255,255,.045);
-    --shadow:0 1px 2px rgba(0,0,0,.4), 0 16px 40px -22px rgba(0,0,0,.9);
-    --q0:#0d366b; --q1:#184f95; --q2:#256abf; --q3:#2a78d6;
-    --q4:#3987e5; --q5:#6da7ec; --q6:#9ec5f4; --q7:#cde2fb;
-    --k0:#dbeafe; --k1:#dbeafe; --k2:#dbeafe; --k3:#f2f7fd;
-    --k4:#0a1a2e; --k5:#0a1a2e; --k6:#0a1a2e; --k7:#0a1a2e;
+    --glow:rgba(74,140,240,.15);
+    --paper-op:.055; --edge-hi:rgba(255,255,255,.06);
+    --sh1:rgba(0,0,0,.45); --sh2:rgba(0,0,0,.85);
+    --q0:#143566; --q1:#2456ab; --q2:#4d86da; --q3:#6b9ce6;
+    --q4:#8fb6ee; --q5:#a8c8f2; --q6:#c6dbf7; --q7:#dfeafb;
+    --k0:#eef5ff; --k1:#eef5ff; --k2:#0b1c33; --k3:#0b1c33;
+    --k4:#0b1c33; --k5:#0b1c33; --k6:#0b1c33; --k7:#0b1c33;
   }
 }
 :root[data-theme="dark"]{
   color-scheme: dark;
-  --plane:#0b0f13; --surface:#151b21; --inset:#1b232b; --slip:#19222a;
-  --ink:#eef3f8; --ink-2:#a7b4c0; --ink-3:#79868f;
-  --line:#2a343d; --hair:#212a32; --ring:rgba(255,255,255,.12);
-  --accent:#7fb0ef; --accent-soft:#182636;
-  --s1:#3987e5; --s2:#d95926; --s1-fade:rgba(57,135,229,.30);
-  --good:#3fbf5c; --warn:#e0a35c; --warn-bg:#2a2118;
+  --plane:#080b11; --surface:#121820; --inset:#19212b; --slip:#161d26;
+  --stub:#131a23;
+  --ink:#eaf0f7; --ink-2:#9fadbd; --ink-3:#727f8f;
+  --line:#28323e; --hair:#1d2630; --ring:rgba(255,255,255,.13);
+  --accent:#8ab3f7; --accent-soft:#15243a;
+  --s1:#4a8cf0; --s2:#e0602b;
+  --s1-fade:rgba(74,140,240,.30); --s1-wash:rgba(74,140,240,.10);
+  --good:#42c163; --warn:#e0a35c; --warn-bg:#291f16;
   --grid:rgba(255,255,255,.045);
-  --shadow:0 1px 2px rgba(0,0,0,.4), 0 16px 40px -22px rgba(0,0,0,.9);
-  --q0:#0d366b; --q1:#184f95; --q2:#256abf; --q3:#2a78d6;
-  --q4:#3987e5; --q5:#6da7ec; --q6:#9ec5f4; --q7:#cde2fb;
-  --k0:#dbeafe; --k1:#dbeafe; --k2:#dbeafe; --k3:#f2f7fd;
-  --k4:#0a1a2e; --k5:#0a1a2e; --k6:#0a1a2e; --k7:#0a1a2e;
+  --glow:rgba(74,140,240,.15);
+  --paper-op:.055; --edge-hi:rgba(255,255,255,.06);
+  --sh1:rgba(0,0,0,.45); --sh2:rgba(0,0,0,.85);
+  --q0:#143566; --q1:#2456ab; --q2:#4d86da; --q3:#6b9ce6;
+  --q4:#8fb6ee; --q5:#a8c8f2; --q6:#c6dbf7; --q7:#dfeafb;
+  --k0:#eef5ff; --k1:#eef5ff; --k2:#0b1c33; --k3:#0b1c33;
+  --k4:#0b1c33; --k5:#0b1c33; --k6:#0b1c33; --k7:#0b1c33;
 }
 
 /* ── base ─────────────────────────────────────────────────────────────── */
@@ -66,55 +112,97 @@
 body,h1,h2,h3,h4,p,figure,table,dl,dd{margin:0}
 html{-webkit-text-size-adjust:100%}
 body{
-  background:var(--plane); color:var(--ink);
-  font:400 16px/1.6 "Public Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  background:var(--plane);
+  background-image:radial-gradient(1100px 620px at 82% -12%, var(--glow), transparent 68%);
+  background-repeat:no-repeat; background-attachment:fixed;
+  color:var(--ink);
+  font:400 16px/1.6 var(--f-body);
+  font-feature-settings:"ss01";
   overflow-x:hidden;
+  -webkit-font-smoothing:antialiased;
 }
 img,canvas{max-width:100%}
-a{color:var(--accent); text-underline-offset:3px; text-decoration-thickness:1px}
+a{color:var(--accent); text-underline-offset:3px; text-decoration-thickness:1px;
+  transition:color .14s ease, text-decoration-thickness .14s ease}
 a:hover{text-decoration-thickness:2px}
-:focus-visible{outline:2px solid var(--s1); outline-offset:2px; border-radius:3px}
+::selection{background:var(--s1); color:#fff}
+:focus-visible{outline:2px solid var(--s1); outline-offset:3px; border-radius:4px}
 .wrap{width:100%; max-width:1400px; margin-inline:auto; padding-inline:clamp(16px,3vw,40px)}
-.mono{font-family:"DM Mono", ui-monospace, SFMono-Regular, Menlo, monospace}
-.num{font-variant-numeric:tabular-nums}
-.skip{position:absolute; left:-9999px; top:0; background:var(--surface); padding:10px 14px; z-index:60}
+.mono{font-family:var(--f-mono)}
+.num{font-variant-numeric:tabular-nums lining-nums}
+.sr{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden;
+  clip:rect(0 0 0 0); clip-path:inset(50%); white-space:nowrap; border:0}
+.skip{position:absolute; left:-9999px; top:0; background:var(--surface); padding:10px 14px;
+  z-index:60; border-radius:8px; box-shadow:var(--e2)}
 .skip:focus{left:12px; top:12px}
 
+/* scrollbars — the page's own furniture, not the browser's */
+*::-webkit-scrollbar{width:11px; height:11px}
+*::-webkit-scrollbar-track{background:transparent}
+*::-webkit-scrollbar-thumb{background:var(--line); border-radius:99px;
+  border:3px solid transparent; background-clip:content-box}
+*::-webkit-scrollbar-thumb:hover{background:var(--ink-3); background-clip:content-box}
+*{scrollbar-color:var(--line) transparent; scrollbar-width:thin}
+
+/* ── type system ──────────────────────────────────────────────────────── */
 .eyebrow{
-  font-family:"DM Mono", ui-monospace, monospace; font-size:11.5px; font-weight:500;
-  letter-spacing:.13em; text-transform:uppercase; color:var(--ink-3);
+  font-family:var(--f-mono); font-size:11px; font-weight:500;
+  letter-spacing:.16em; text-transform:uppercase; color:var(--ink-3);
 }
 .display{
-  font-family:"Bricolage Grotesque", "Public Sans", sans-serif;
-  font-variation-settings:"wdth" 88, "wght" 760, "opsz" 48;
-  letter-spacing:-.022em; line-height:1.0;
+  font-family:var(--f-display);
+  font-variation-settings:"wdth" 112, "wght" 780;
+  letter-spacing:-.02em; line-height:1.0;
 }
-h2.display{font-size:clamp(1.5rem,2.6vw,2.05rem); font-variation-settings:"wdth" 90,"wght" 720,"opsz" 32}
-h3{font-size:1rem; font-weight:600; line-height:1.35}
+h2.display{font-size:clamp(1.55rem,2.7vw,2.15rem); font-variation-settings:"wdth" 108,"wght" 740}
+h3{font-size:1rem; font-weight:600; line-height:1.35; letter-spacing:-.008em}
 .lede{color:var(--ink-2); max-width:66ch}
+
+/* the money face: the display cut, tabular, tightly tracked. Every ₹ figure
+   on the page — hero slip, stat tiles, ledger — is set from this one rule
+   so the numbers read as one voice. */
+.money{
+  font-family:var(--f-display); font-variation-settings:"wdth" 102,"wght" 720;
+  font-variant-numeric:tabular-nums lining-nums; letter-spacing:-.028em;
+}
 
 /* ── top bar ──────────────────────────────────────────────────────────── */
 .topbar{
-  position:sticky; top:0; z-index:40; background:color-mix(in srgb, var(--plane) 86%, transparent);
-  backdrop-filter:saturate(140%) blur(10px); border-bottom:1px solid var(--hair);
+  position:sticky; top:0; z-index:40;
+  background:color-mix(in srgb, var(--plane) 84%, transparent);
+  backdrop-filter:saturate(150%) blur(12px); -webkit-backdrop-filter:saturate(150%) blur(12px);
+  border-bottom:1px solid var(--hair);
 }
 .topbar .wrap{display:flex; align-items:center; gap:18px; min-height:58px; flex-wrap:wrap; padding-block:9px}
-.brand{display:flex; align-items:baseline; gap:9px; font-weight:700; letter-spacing:-.02em; font-size:17px}
-.brand .dot{width:9px; height:9px; border-radius:2px; background:var(--s1); align-self:center}
-.brand span{font-family:"DM Mono",monospace; font-size:11px; font-weight:400; letter-spacing:.1em;
+/* how far down the document you are — a 2px rule that grows along the
+   topbar's own bottom edge. No transition: it tracks the scrollbar. */
+.progress{
+  position:absolute; left:0; right:0; bottom:-1px; height:2px; background:var(--s1);
+  transform:scaleX(0); transform-origin:0 50%; opacity:.85;
+}
+.brand{display:flex; align-items:baseline; gap:9px; font-family:var(--f-display);
+  font-variation-settings:"wdth" 108,"wght" 760; letter-spacing:-.018em; font-size:18px}
+.brand .dot{width:9px; height:9px; border-radius:2px; background:var(--s1); align-self:center;
+  box-shadow:0 0 0 3px var(--s1-wash)}
+.brand span{font-family:var(--f-mono); font-size:10.5px; font-weight:400; letter-spacing:.14em;
   text-transform:uppercase; color:var(--ink-3)}
 .cities{display:flex; align-items:center; gap:6px; margin-left:auto; flex-wrap:wrap}
-.cities .lab{font-family:"DM Mono",monospace; font-size:11px; letter-spacing:.1em;
+.cities .lab{font-family:var(--f-mono); font-size:10.5px; letter-spacing:.14em;
   text-transform:uppercase; color:var(--ink-3); margin-right:2px}
 .city{
   display:inline-flex; align-items:center; gap:7px;
-  font:500 13px/1 "Public Sans",sans-serif; padding:7px 12px; border-radius:999px; cursor:pointer;
+  font:500 13px/1 var(--f-body); padding:7px 12px; border-radius:999px; cursor:pointer;
   border:1px solid var(--line); background:var(--surface); color:var(--ink-2);
+  transition:border-color .14s ease, color .14s ease, background .14s ease, box-shadow .14s ease;
 }
+.city:hover{border-color:var(--ink-3); color:var(--ink)}
+.city:active{transform:translateY(.5px)}
 .city[aria-pressed="true"]{background:var(--ink); border-color:var(--ink); color:var(--plane)}
-.city .pip{width:7px; height:7px; border-radius:50%; background:var(--good); flex:none}
+.city[aria-pressed="true"]:hover{background:var(--ink); color:var(--plane)}
+.city .pip{width:7px; height:7px; border-radius:50%; background:var(--good); flex:none;
+  box-shadow:0 0 0 3px color-mix(in srgb, var(--good) 22%, transparent)}
 .city em{
-  font-style:normal; font-family:"DM Mono",monospace; font-size:10px; letter-spacing:.1em;
+  font-style:normal; font-family:var(--f-mono); font-size:10px; letter-spacing:.12em;
   text-transform:uppercase; opacity:.68;
 }
 
@@ -123,33 +211,39 @@ h3{font-size:1rem; font-weight:600; line-height:1.35}
 .citypop > summary{list-style:none}
 .citypop > summary::-webkit-details-marker{display:none}
 .citypop > summary::marker{content:""}
-.citypop .caret{width:9px; height:9px; transition:transform .15s ease}
+.citypop .caret{width:9px; height:9px; transition:transform .16s cubic-bezier(.3,.7,.4,1)}
 .citypop[open] .caret{transform:rotate(180deg)}
 .citypop[open] > summary{border-color:var(--ink-3); color:var(--ink)}
 .pop{
   position:absolute; top:calc(100% + 9px); right:0; z-index:60; width:min(300px,calc(100vw - 32px));
-  background:var(--surface); border:1px solid var(--line); border-radius:12px;
-  box-shadow:var(--shadow); padding:14px 15px;
+  background:var(--surface); border:1px solid var(--line); border-radius:13px;
+  box-shadow:var(--e3); padding:14px 15px;
 }
-.pop .pop-k{font-family:"DM Mono",monospace; font-size:10.5px; letter-spacing:.12em;
+.pop .pop-k{font-family:var(--f-mono); font-size:10.5px; letter-spacing:.14em;
   text-transform:uppercase; color:var(--ink-3)}
 .pop ul{list-style:none; margin:9px 0 0; padding:0; display:grid; gap:1px;
-  background:var(--hair); border:1px solid var(--hair); border-radius:8px; overflow:hidden}
+  background:var(--hair); border:1px solid var(--hair); border-radius:9px; overflow:hidden}
 .pop li{background:var(--surface)}
 .pop li a{
   display:flex; justify-content:space-between; align-items:baseline; gap:10px;
   padding:8px 11px; font-size:13.5px; font-weight:500; color:var(--ink); text-decoration:none;
+  transition:background .13s ease, color .13s ease;
 }
 .pop li a:hover{background:var(--inset); color:var(--accent)}
-.pop li a span{color:var(--ink-3); font-family:"DM Mono",monospace; font-size:12px}
-.pop li a:hover span{color:var(--accent)}
+.pop li a span{color:var(--ink-3); font-family:var(--f-mono); font-size:12px;
+  transition:transform .16s cubic-bezier(.3,.7,.4,1)}
+.pop li a:hover span{color:var(--accent); transform:translateX(3px)}
 .pop .pop-note{margin-top:10px; font-size:12.5px; line-height:1.5; color:var(--ink-2)}
 .tbtn{
   display:inline-flex; align-items:center; gap:7px; border:1px solid var(--line); background:var(--surface);
   color:var(--ink-2); border-radius:999px; padding:7px 12px; cursor:pointer;
-  font:500 13px/1 "Public Sans",sans-serif;
+  font:500 13px/1 var(--f-body);
+  transition:border-color .14s ease, color .14s ease, background .14s ease;
 }
-.tbtn svg{width:14px; height:14px}
+.tbtn:hover{border-color:var(--ink-3); color:var(--ink)}
+.tbtn:active{transform:translateY(.5px)}
+.tbtn svg{width:14px; height:14px; transition:transform .3s cubic-bezier(.3,.7,.4,1)}
+.tbtn:hover svg{transform:rotate(22deg)}
 .tbtn .i-dark{display:none}
 :root[data-theme="dark"] .tbtn .i-dark{display:block}
 :root[data-theme="dark"] .tbtn .i-light{display:none}
@@ -163,19 +257,29 @@ section{padding-block:clamp(30px,3.2vw,46px)}
 section + section{border-top:1px solid var(--hair)}
 #estimate{padding-top:clamp(16px,1.8vw,24px); padding-bottom:clamp(26px,2.8vw,40px);
   position:relative; overflow:hidden}
-#estimate::before{
+/* the drafting board: a survey grid under the two map-like moments only
+   (the estimator and the atlas), faded out so it is atmosphere, not noise */
+#estimate::before, #atlas::before{
   content:""; position:absolute; inset:0; pointer-events:none;
   background-image:linear-gradient(var(--grid) 1px, transparent 1px),
                    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
-  background-size:30px 30px; background-position:center top;
+  background-size:32px 32px; background-position:center top;
   -webkit-mask-image:linear-gradient(to bottom, #000 0%, transparent 78%);
   mask-image:linear-gradient(to bottom, #000 0%, transparent 78%);
 }
-#estimate > .wrap{position:relative}
+#atlas{position:relative; overflow:hidden}
+#atlas::before{opacity:.65}
+#estimate > .wrap, #atlas > .wrap{position:relative}
 .sec-head{display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; margin-bottom:5px}
 .sec-head .eyebrow{padding-top:4px}
 .sec-note{color:var(--ink-2); max-width:86ch; margin-bottom:18px; font-size:15px}
 .rule{height:1px; background:var(--line); border:0; margin:0}
+
+/* scroll reveal — opacity and translate only, once, and only ever added by
+   JS so the page is fully visible with scripting off */
+.reveal{opacity:0; transform:translateY(15px);
+  transition:opacity .55s cubic-bezier(.22,.61,.36,1), transform .55s cubic-bezier(.22,.61,.36,1)}
+.reveal.in{opacity:1; transform:none}
 
 /* ── hero + estimator ─────────────────────────────────────────────────── */
 .hero{display:grid; grid-template-columns:minmax(0,1fr); gap:24px; align-items:end; margin-bottom:16px}
@@ -183,7 +287,7 @@ section + section{border-top:1px solid var(--hair)}
   .hero{grid-template-columns:minmax(0,1fr) minmax(320px,420px); gap:clamp(30px,3.4vw,64px)}
 }
 .hero-head{max-width:none}
-h1.display{font-size:clamp(2.05rem,4.4vw,3.45rem); margin:9px 0 12px}
+h1.display{font-size:clamp(2.05rem,4.5vw,3.5rem); margin:11px 0 13px}
 h1 .hl{color:var(--s1)}
 .hero-head p{color:var(--ink-2); font-size:clamp(15px,1.3vw,16.5px); max-width:64ch}
 
@@ -198,13 +302,14 @@ h1 .hl{color:var(--s1)}
 .lrow dt{color:var(--ink-2); font-size:13px; line-height:1.35; flex:0 1 auto}
 .lrow .lead{flex:1 1 12px; min-width:10px; align-self:center;
   border-bottom:1px dotted var(--line); height:0; transform:translateY(-2px)}
-.lrow dd{font-variant-numeric:tabular-nums; font-weight:700; font-size:16.5px;
-  letter-spacing:-.015em; white-space:nowrap; flex:none}
-.lrow dd .vs{font-weight:500; font-size:12.5px; color:var(--ink-3); letter-spacing:0}
+.lrow dd{font-family:var(--f-display); font-variation-settings:"wdth" 100,"wght" 700;
+  font-variant-numeric:tabular-nums lining-nums; font-size:16.5px;
+  letter-spacing:-.02em; white-space:nowrap; flex:none}
+.lrow dd .vs{font-family:var(--f-body); font-weight:500; font-size:12.5px; color:var(--ink-3); letter-spacing:0}
 
 /* the honesty caveat, spanning the measure above the estimate it qualifies */
 .caveat{
-  margin:0 0 16px; padding:11px 15px; border-radius:10px;
+  margin:0 0 16px; padding:11px 15px; border-radius:11px;
   background:var(--inset); border:1px solid var(--line); border-left:3px solid var(--warn);
   color:var(--ink-2); font-size:13.5px; line-height:1.55;
 }
@@ -219,39 +324,47 @@ h1 .hl{color:var(--s1)}
 .not-served.on{display:block}
 .not-served-body{padding:26px 28px 28px; max-width:78ch}
 .not-served-body .eyebrow{color:var(--warn)}
-.not-served-body h3{font-size:1.35rem; margin:9px 0 10px}
+.not-served-body h3{font-size:1.4rem; margin:9px 0 10px}
 .not-served-body .lede{margin-bottom:4px}
 .ns-rates{display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:14px; margin-top:18px}
-.ns-rate{background:var(--inset); border:1px solid var(--line); border-radius:10px; padding:12px 14px}
-.ns-rate dt{font-family:"DM Mono",monospace; font-size:10.5px; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3)}
-.ns-rate dd{font:700 1.5rem/1.1 "Public Sans",sans-serif; margin-top:6px; letter-spacing:-.02em}
-.panel{background:var(--surface); border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow)}
+.ns-rate{background:var(--inset); border:1px solid var(--line); border-radius:11px; padding:12px 14px}
+.ns-rate dt{font-family:var(--f-mono); font-size:10.5px; letter-spacing:.11em; text-transform:uppercase; color:var(--ink-3)}
+.ns-rate dd{font-family:var(--f-display); font-variation-settings:"wdth" 100,"wght" 720;
+  font-size:1.5rem; line-height:1.1; margin-top:6px; letter-spacing:-.025em;
+  font-variant-numeric:tabular-nums lining-nums}
+.panel{background:var(--surface); border:1px solid var(--line); border-radius:15px; box-shadow:var(--e2)}
 .form{padding:20px 20px 22px}
 .form-grid{display:grid; grid-template-columns:repeat(6,1fr); gap:14px 14px}
 .f{display:flex; flex-direction:column; gap:6px; min-width:0}
 .f-2{grid-column:span 2} .f-3{grid-column:span 3} .f-4{grid-column:span 4} .f-6{grid-column:span 6}
 .f > label, .f > .flabel{
-  font-family:"DM Mono",monospace; font-size:11px; letter-spacing:.1em; text-transform:uppercase;
+  font-family:var(--f-mono); font-size:10.5px; letter-spacing:.13em; text-transform:uppercase;
   color:var(--ink-3); display:flex; justify-content:space-between; align-items:baseline; gap:8px;
 }
-.f > label .val{color:var(--ink); font-weight:500; letter-spacing:0; text-transform:none; font-size:12.5px}
-select,input[type="number"]{
-  width:100%; font:400 15px/1.2 "Public Sans",sans-serif; color:var(--ink);
-  background:var(--inset); border:1px solid var(--line); border-radius:9px; padding:10px 11px;
+.f > label .val{color:var(--ink); font-weight:500; letter-spacing:0; text-transform:none;
+  font-size:12.5px; font-variant-numeric:tabular-nums lining-nums}
+select,input[type="number"],input[type="text"]{
+  width:100%; font:400 15px/1.2 var(--f-body); color:var(--ink);
+  background:var(--inset); border:1px solid var(--line); border-radius:10px; padding:10px 11px;
   appearance:none; -webkit-appearance:none;
+  transition:border-color .14s ease, background .14s ease, box-shadow .14s ease;
 }
+select:hover,input[type="number"]:hover,input[type="text"]:hover{border-color:var(--ink-3)}
+select:focus-visible,input:focus-visible{background:var(--surface)}
 select{
   background-image:linear-gradient(45deg,transparent 50%,var(--ink-3) 50%),
                    linear-gradient(135deg,var(--ink-3) 50%,transparent 50%);
   background-position:calc(100% - 17px) 51%, calc(100% - 12px) 51%;
   background-size:5px 5px,5px 5px; background-repeat:no-repeat; padding-right:32px;
 }
-input[type="number"]{font-variant-numeric:tabular-nums}
-.seg{display:flex; background:var(--inset); border:1px solid var(--line); border-radius:9px; padding:3px; gap:3px}
+input[type="number"]{font-variant-numeric:tabular-nums lining-nums}
+.seg{display:flex; background:var(--inset); border:1px solid var(--line); border-radius:10px; padding:3px; gap:3px}
 .seg button{
-  flex:1; font:500 14px/1 "Public Sans",sans-serif; padding:9px 6px; border:0; border-radius:6px;
+  flex:1; font:500 14px/1 var(--f-body); padding:9px 6px; border:0; border-radius:7px;
   background:transparent; color:var(--ink-2); cursor:pointer;
+  transition:background .15s ease, color .15s ease, box-shadow .15s ease;
 }
+.seg button:hover{color:var(--ink)}
 .seg button[aria-pressed="true"]{background:var(--surface); color:var(--ink); box-shadow:0 1px 2px var(--ring)}
 input[type="range"]{
   -webkit-appearance:none; appearance:none; width:100%; height:22px; background:transparent; cursor:pointer;
@@ -260,40 +373,76 @@ input[type="range"]::-webkit-slider-runnable-track{height:4px; border-radius:99p
 input[type="range"]::-webkit-slider-thumb{
   -webkit-appearance:none; width:17px; height:17px; border-radius:50%; background:var(--s1);
   border:2.5px solid var(--surface); box-shadow:0 0 0 1px var(--ring); margin-top:-6.5px;
+  transition:box-shadow .15s ease, transform .15s ease;
 }
+input[type="range"]:hover::-webkit-slider-thumb{box-shadow:0 0 0 1px var(--ring), 0 0 0 6px var(--s1-wash)}
+input[type="range"]:active::-webkit-slider-thumb{transform:scale(1.1)}
+input[type="range"]:focus-visible::-webkit-slider-thumb{box-shadow:0 0 0 1px var(--ring), 0 0 0 6px var(--s1-fade)}
 input[type="range"]::-moz-range-track{height:4px; border-radius:99px; background:var(--line)}
 input[type="range"]::-moz-range-thumb{width:14px; height:14px; border:2.5px solid var(--surface); border-radius:50%; background:var(--s1)}
-.scale{display:flex; justify-content:space-between; font-family:"DM Mono",monospace; font-size:10.5px; color:var(--ink-3); margin-top:-4px}
+input[type="range"]:focus-visible{outline:none}
+.scale{display:flex; justify-content:space-between; font-family:var(--f-mono); font-size:10.5px;
+  color:var(--ink-3); margin-top:-4px; font-variant-numeric:tabular-nums lining-nums}
 .area-row{display:grid; grid-template-columns:118px 1fr; gap:12px; align-items:center}
 /* Shown only for a city whose feed never stated its area basis. */
 .area-basis-note{margin:8px 0 0; font-size:12px; line-height:1.5; color:var(--ink-3)}
 .area-basis-note[hidden]{display:none}
 .warn{
-  display:none; gap:9px; align-items:flex-start; margin-top:12px; padding:10px 12px; border-radius:9px;
+  display:none; gap:9px; align-items:flex-start; margin-top:12px; padding:10px 12px; border-radius:10px;
   background:var(--warn-bg); color:var(--warn); font-size:13.5px; line-height:1.45; border:1px solid currentColor;
 }
 .warn.on{display:flex}
 .warn b{font-weight:600}
-.warn .ic{flex:none; font-weight:700; font-family:"DM Mono",monospace}
+.warn .ic{flex:none; font-weight:700; font-family:var(--f-mono)}
 
-/* ── the valuation slip ───────────────────────────────────────────────── */
+/* ── the valuation slip: the signature artifact ───────────────────────────
+   A printed slip of paper, not a card. It has fibre, a printed header rule,
+   a perforated tear line, a carbon-copy stub below it, and a serial. */
 .slip{
-  background:var(--slip); border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow);
+  background:var(--slip); border:1px solid var(--line); border-radius:15px; box-shadow:var(--e3);
   position:relative; overflow:hidden;
+  box-shadow:var(--e3), inset 0 1px 0 var(--edge-hi);
 }
-.slip-top{padding:16px 20px 4px; display:flex; justify-content:space-between; align-items:baseline; gap:10px}
-.slip-top .t{font-family:"DM Mono",monospace; font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-3)}
+/* the fibre. One inline SVG turbulence, ~250 bytes, no request. */
+.slip::before{
+  content:""; position:absolute; inset:0; pointer-events:none; z-index:0; opacity:var(--paper-op);
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+/* the printed header rule */
+.slip::after{
+  content:""; position:absolute; top:0; left:0; right:0; height:3px; z-index:2; pointer-events:none;
+  background:linear-gradient(90deg, var(--s1) 0%, var(--s1) 34%, var(--s2) 34%, var(--s2) 41%, transparent 41%);
+}
+.slip > *{position:relative; z-index:1}
+.slip-top{padding:19px 20px 4px; display:flex; justify-content:space-between; align-items:baseline; gap:10px}
+.slip-top .t{font-family:var(--f-mono); font-size:10.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--ink-3)}
 .slip-top .t b{color:var(--ink); font-weight:500}
-.slip-spec{padding:2px 20px 0; font-family:"DM Mono",monospace; font-size:12px; color:var(--ink-2); line-height:1.7}
+.slip-spec{padding:2px 20px 0; font-family:var(--f-mono); font-size:11.5px; color:var(--ink-2); line-height:1.75}
 .slip-body{padding:14px 20px 18px}
 .figure{
-  font:700 clamp(2.5rem,5.6vw,3.75rem)/1 "Public Sans",sans-serif; letter-spacing:-.032em;
-  display:flex; align-items:baseline; gap:8px; transition:opacity .16s ease, transform .16s ease;
+  font-family:var(--f-display); font-variation-settings:"wdth" 102,"wght" 720;
+  font-size:clamp(2.5rem,5.7vw,3.8rem); line-height:1;
+  font-variant-numeric:tabular-nums lining-nums; letter-spacing:-.03em;
+  display:flex; align-items:baseline; gap:8px;
 }
-.figure .cur{font-size:.52em; font-weight:600; color:var(--ink-2)}
-.figure .unit{font-size:.32em; font-weight:600; letter-spacing:.04em; color:var(--ink-3); text-transform:uppercase}
-.figure.flash{opacity:.35; transform:translateY(2px)}
-.fig-sub{color:var(--ink-2); font-size:13.5px; margin-top:8px}
+.figure .cur{font-size:.5em; font-variation-settings:"wdth" 100,"wght" 600; color:var(--ink-2)}
+.figure .unit{font-family:var(--f-mono); font-size:.26em; font-weight:500; letter-spacing:.1em;
+  color:var(--ink-3); text-transform:uppercase}
+/* the estimate re-printing: a 1px accent rule wipes left-to-right under the
+   figure whenever the number changes. One acknowledgement, not a bounce. */
+.fig-wrap{position:relative; display:inline-block}
+.fig-wrap::after{
+  content:""; position:absolute; left:0; right:0; bottom:-5px; height:1.5px; background:var(--s1);
+  transform:scaleX(0); transform-origin:0 50%; opacity:0;
+}
+.fig-wrap.printing::after{animation:wipe .42s cubic-bezier(.22,.61,.36,1)}
+@keyframes wipe{
+  0%{transform:scaleX(0); opacity:1}
+  58%{transform:scaleX(1); opacity:1}
+  100%{transform:scaleX(1); opacity:0}
+}
+.fig-sub{color:var(--ink-2); font-size:13.5px; margin-top:10px}
+.fig-sub .num{font-family:var(--f-mono); font-size:12.5px; font-weight:500; color:var(--ink)}
 
 .ruler{margin-top:20px}
 .ruler .track{
@@ -301,41 +450,52 @@ input[type="range"]::-moz-range-thumb{width:14px; height:14px; border:2.5px soli
   border:1px solid var(--line); overflow:visible;
 }
 .ruler .fill{position:absolute; inset:0 8% 0 8%; border-radius:99px; background:var(--s1-fade)}
-.ruler .pin{position:absolute; top:50%; translate:-50% -50%}
-.ruler .pin.model{width:16px; height:16px; border-radius:50%; background:var(--s1); border:2.5px solid var(--slip); box-shadow:0 0 0 1px var(--ring)}
+.ruler .pin{position:absolute; top:50%; translate:-50% -50%;
+  transition:left .2s cubic-bezier(.22,.61,.36,1), opacity .2s ease}
+.ruler .pin.model{width:16px; height:16px; border-radius:50%; background:var(--s1);
+  border:2.5px solid var(--slip); box-shadow:0 0 0 1px var(--ring), 0 0 0 7px var(--s1-wash)}
 .ruler .pin.rule{width:4px; height:22px; border-radius:2px; background:var(--s2); box-shadow:0 0 0 2px var(--slip)}
-.ruler .ends{display:flex; justify-content:space-between; margin-top:9px; font-family:"DM Mono",monospace; font-size:11.5px; color:var(--ink-2)}
+.ruler .ends{display:flex; justify-content:space-between; margin-top:10px; font-family:var(--f-mono);
+  font-size:11.5px; color:var(--ink-2); font-variant-numeric:tabular-nums lining-nums}
 .ruler .ends span:last-child{text-align:right}
 .legend{display:flex; flex-wrap:wrap; gap:6px 16px; margin-top:12px; font-size:12.5px; color:var(--ink-2)}
 .legend i{display:inline-block; vertical-align:middle; margin-right:7px}
 .legend .k-model{width:10px; height:10px; border-radius:50%; background:var(--s1)}
 .legend .k-rule{width:4px; height:12px; border-radius:2px; background:var(--s2)}
 
+/* the tear line: a real perforation, with the punched half-circles biting
+   in from both edges of the paper */
 .perf{position:relative; height:1px; margin:20px 0 0;
   background:repeating-linear-gradient(90deg,var(--line) 0 5px,transparent 5px 11px)}
 .perf::before,.perf::after{
-  content:""; position:absolute; top:50%; width:14px; height:14px; border-radius:50%;
+  content:""; position:absolute; top:50%; width:15px; height:15px; border-radius:50%;
   background:var(--plane); border:1px solid var(--line); translate:0 -50%;
 }
-.perf::before{left:-8px} .perf::after{right:-8px}
-.slip-foot{padding:16px 20px 18px}
-.kv{display:grid; grid-template-columns:1fr auto; gap:7px 14px; align-items:baseline; font-size:13.5px}
+.perf::before{left:-8.5px} .perf::after{right:-8.5px}
+/* the stub below the tear: a shade off the paper above it, like a carbon copy */
+.slip-foot{padding:18px 20px 20px; background:var(--stub)}
+.kv{display:grid; grid-template-columns:1fr auto; gap:8px 14px; align-items:baseline; font-size:13.5px}
 .kv dt{color:var(--ink-2)}
-.kv dt small{display:block; font-family:"DM Mono",monospace; font-size:11px; color:var(--ink-3); line-height:1.5}
-.kv dd{font-weight:600; font-variant-numeric:tabular-nums; text-align:right}
+.kv dt small{display:block; font-family:var(--f-mono); font-size:10.5px; color:var(--ink-3); line-height:1.55}
+.kv dd{font-weight:600; font-variant-numeric:tabular-nums lining-nums; text-align:right}
 .kv dd.rulev{color:var(--s2)}
+/* the serial, printed */
 .ref{
-  margin-top:14px; padding-top:12px; border-top:1px dashed var(--line);
-  font-family:"DM Mono",monospace; font-size:11px; color:var(--ink-3); word-break:break-all;
+  margin-top:15px; padding-top:12px; border-top:1px dashed var(--line);
+  font-family:var(--f-mono); font-size:10.5px; color:var(--ink-3); word-break:break-all;
+  letter-spacing:.06em;
 }
-.ref b{color:var(--ink-2); font-weight:500}
+.ref b{color:var(--ink-2); font-weight:500; letter-spacing:.14em; text-transform:uppercase}
+.ref #refCode{transition:opacity .3s ease}
+.slip.printing .ref #refCode{opacity:.3; transition:none}
 
 /* ── generic cards / charts ───────────────────────────────────────────── */
 .cards{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px}
-.card{background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:16px 18px 14px; min-width:0}
+.card{background:var(--surface); border:1px solid var(--line); border-radius:15px;
+  padding:16px 18px 14px; min-width:0; box-shadow:var(--e1)}
 .card.wide{grid-column:1/-1}
 .card h3{margin-bottom:2px}
-.card .sub{font-family:"DM Mono",monospace; font-size:11.5px; color:var(--ink-3); margin-bottom:12px; line-height:1.5}
+.card .sub{font-family:var(--f-mono); font-size:11px; color:var(--ink-3); margin-bottom:12px; line-height:1.55}
 .chartbox{position:relative; height:290px}
 .card.wide .chartbox{height:330px}
 .scrollx{overflow-x:auto; overscroll-behavior-x:contain; padding-bottom:4px}
@@ -346,28 +506,35 @@ table{border-collapse:collapse; width:100%; font-size:14px}
 th,td{text-align:right; padding:10px 12px; border-bottom:1px solid var(--hair); white-space:nowrap}
 th:first-child,td:first-child{text-align:left}
 thead th{
-  font-family:"DM Mono",monospace; font-size:10.5px; letter-spacing:.09em; text-transform:uppercase;
+  font-family:var(--f-mono); font-size:10px; letter-spacing:.12em; text-transform:uppercase;
   color:var(--ink-3); font-weight:500; border-bottom:1px solid var(--line);
 }
-tbody td{font-variant-numeric:tabular-nums}
+tbody td{font-variant-numeric:tabular-nums lining-nums}
+tbody tr{transition:background .12s ease}
+tbody tr:hover td{background:var(--inset)}
 tbody tr:last-child td{border-bottom:0}
 .tag{
-  display:inline-block; font-family:"DM Mono",monospace; font-size:10.5px; letter-spacing:.06em;
+  display:inline-block; font-family:var(--f-mono); font-size:10px; letter-spacing:.08em;
   text-transform:uppercase; padding:2px 7px; border-radius:99px; border:1px solid var(--line); color:var(--ink-2);
 }
 .note{font-size:13px; color:var(--ink-3); margin-top:12px}
 
-/* ── sector atlas grid ────────────────────────────────────────────────── */
-.atlas{background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:18px}
+/* ── sector atlas: the showpiece ──────────────────────────────────────── */
+.atlas{background:var(--surface); border:1px solid var(--line); border-radius:15px;
+  padding:18px; box-shadow:var(--e2)}
 .tiles{display:grid; grid-template-columns:repeat(auto-fill,minmax(62px,1fr)); gap:5px}
 .tile{
-  position:relative; aspect-ratio:1; border-radius:4px; display:flex; flex-direction:column;
-  align-items:center; justify-content:center; gap:1px; cursor:default; border:0; padding:0;
-  font-family:"DM Mono",monospace; font-size:12px; font-weight:500;
-  transition:transform .12s ease, box-shadow .12s ease;
+  position:relative; aspect-ratio:1; border-radius:5px; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:1px; cursor:pointer; border:0; padding:0;
+  font-family:var(--f-mono); font-size:12px; font-weight:500;
+  font-variant-numeric:tabular-nums lining-nums;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.10);
+  transition:transform .16s cubic-bezier(.3,.7,.4,1), box-shadow .16s ease, filter .16s ease;
 }
-.tile em{font-style:normal; font-size:9.5px; opacity:.85; letter-spacing:.02em}
-.tile:hover,.tile:focus-visible{transform:scale(1.13); z-index:3; box-shadow:0 6px 18px -6px rgba(0,0,0,.45)}
+.tile em{font-style:normal; font-size:9.5px; opacity:.82; letter-spacing:.02em}
+.tiles:hover .tile:not(:hover){filter:saturate(.88) opacity(.8)}
+.tile:hover,.tile:focus-visible{transform:scale(1.16); z-index:3; filter:none;
+  box-shadow:0 10px 24px -8px var(--sh2), inset 0 0 0 1px rgba(255,255,255,.22)}
 .tile[data-s="0"]{background:var(--q0); color:var(--k0)}
 .tile[data-s="1"]{background:var(--q1); color:var(--k1)}
 .tile[data-s="2"]{background:var(--q2); color:var(--k2)}
@@ -376,66 +543,99 @@ tbody tr:last-child td{border-bottom:0}
 .tile[data-s="5"]{background:var(--q5); color:var(--k5)}
 .tile[data-s="6"]{background:var(--q6); color:var(--k6)}
 .tile[data-s="7"]{background:var(--q7); color:var(--k7)}
-.tile.sel{box-shadow:0 0 0 2px var(--surface), 0 0 0 4px var(--ink)}
-.ramp-legend{display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-top:16px; font-size:12.5px; color:var(--ink-2)}
+/* the selected sector, celebrated: pulled out of the sheet with a ring in
+   the page's own ink and a survey-style corner tick */
+.tile.sel{
+  transform:scale(1.1); z-index:2; filter:none;
+  box-shadow:0 0 0 2px var(--surface), 0 0 0 4px var(--s1), 0 10px 22px -10px var(--sh2);
+}
+.tiles:hover .tile.sel:not(:hover){filter:none}
+.tile.sel::after{
+  content:""; position:absolute; inset:-7px; border-radius:8px; pointer-events:none;
+  border:1px dashed var(--s1); opacity:.45;
+}
+.ramp-legend{display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-top:18px;
+  font-size:12.5px; color:var(--ink-2)}
+.ramp-legend .mono{font-variant-numeric:tabular-nums lining-nums; font-size:11.5px}
 .ramp{display:flex; height:11px; width:200px; border-radius:3px; overflow:hidden; border:1px solid var(--ring)}
 .ramp i{flex:1}
 .ramp i:nth-child(1){background:var(--q0)} .ramp i:nth-child(2){background:var(--q1)}
 .ramp i:nth-child(3){background:var(--q2)} .ramp i:nth-child(4){background:var(--q3)}
 .ramp i:nth-child(5){background:var(--q4)} .ramp i:nth-child(6){background:var(--q5)}
 .ramp i:nth-child(7){background:var(--q6)} .ramp i:nth-child(8){background:var(--q7)}
+/* which tile is outlined, said in words as well as by the ring */
+.atlas-sel{display:inline-flex; align-items:center; gap:7px; font-family:var(--f-mono);
+  font-size:11.5px; color:var(--ink-2); border:1px solid var(--line); background:var(--inset);
+  border-radius:99px; padding:4px 11px}
+.atlas-sel i{width:8px; height:8px; border-radius:2px; background:var(--s1); flex:none}
 .tip{
-  position:fixed; z-index:50; pointer-events:none; opacity:0; transition:opacity .1s;
-  background:var(--ink); color:var(--plane); padding:9px 11px; border-radius:7px; max-width:240px;
-  font-family:"DM Mono",monospace; font-size:11.5px; line-height:1.6;
+  position:fixed; z-index:50; pointer-events:none; opacity:0;
+  transition:opacity .12s ease;
+  background:var(--surface); color:var(--ink); border:1px solid var(--line);
+  box-shadow:var(--e3); padding:10px 12px; border-radius:9px; max-width:240px;
+  font-family:var(--f-mono); font-size:11px; line-height:1.7;
+  font-variant-numeric:tabular-nums lining-nums;
 }
-.tip b{color:#9ec5f4; font-weight:500}
+.tip b{display:block; font-family:var(--f-body); font-size:13px; font-weight:600;
+  letter-spacing:-.005em; margin-bottom:3px; color:var(--ink)}
+.tip s{text-decoration:none; color:var(--ink-3)}
 details{margin-top:16px; border-top:1px solid var(--hair); padding-top:12px}
-summary{cursor:pointer; font-size:13.5px; color:var(--ink-2); font-weight:500}
+summary{cursor:pointer; font-size:13.5px; color:var(--ink-2); font-weight:500;
+  transition:color .14s ease}
+summary:hover{color:var(--ink)}
 summary::marker{color:var(--ink-3)}
-details .scrolly{max-height:320px; overflow:auto; margin-top:10px; border:1px solid var(--hair); border-radius:9px}
+details .scrolly{max-height:320px; overflow:auto; margin-top:10px; border:1px solid var(--hair); border-radius:10px}
 details thead th{position:sticky; top:0; background:var(--surface)}
 
 /* ── findings ─────────────────────────────────────────────────────────── */
 .findings{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin-top:16px}
-.finding{background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:17px 18px}
+.finding{background:var(--surface); border:1px solid var(--line); border-radius:15px;
+  padding:17px 18px; box-shadow:var(--e1)}
 .finding .eyebrow{color:var(--s1)}
 .finding h3{margin:8px 0 7px}
 .finding p{font-size:14.5px; color:var(--ink-2)}
 .finding p + p{margin-top:9px}
-.finding b{color:var(--ink); font-weight:600; font-variant-numeric:tabular-nums}
+.finding b{color:var(--ink); font-weight:600; font-variant-numeric:tabular-nums lining-nums}
 
 /* ── model card ───────────────────────────────────────────────────────── */
 .tiles-stat{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; margin-bottom:16px}
-.stat{background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:16px 18px}
-.stat .k{font-family:"DM Mono",monospace; font-size:11px; letter-spacing:.11em; text-transform:uppercase; color:var(--ink-3)}
-.stat .v{font:700 clamp(1.8rem,3.4vw,2.4rem)/1.05 "Public Sans",sans-serif; letter-spacing:-.025em; margin-top:9px}
-.stat .v small{font-size:.42em; font-weight:600; color:var(--ink-3); letter-spacing:0}
-.stat .d{margin-top:9px; font-size:13px; color:var(--good); font-weight:500}
+.stat{background:var(--surface); border:1px solid var(--line); border-radius:15px;
+  padding:16px 18px; box-shadow:var(--e1); position:relative; overflow:hidden}
+.stat::before{content:""; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--s1); opacity:.85}
+.stat .k{font-family:var(--f-mono); font-size:10.5px; letter-spacing:.13em; text-transform:uppercase; color:var(--ink-3)}
+.stat .v{font-family:var(--f-display); font-variation-settings:"wdth" 102,"wght" 720;
+  font-size:clamp(1.85rem,3.5vw,2.5rem); line-height:1.05; letter-spacing:-.03em; margin-top:10px;
+  font-variant-numeric:tabular-nums lining-nums}
+.stat .v small{font-family:var(--f-mono); font-size:.36em; font-weight:500; color:var(--ink-3);
+  letter-spacing:.02em; margin-left:.16em}
+.stat .d{margin-top:10px; font-size:13px; color:var(--good); font-weight:500;
+  font-variant-numeric:tabular-nums lining-nums}
 .stat .d span{color:var(--ink-3); font-weight:400}
 .metrics-table td:first-child{white-space:normal}
 .metrics-table tbody tr.me td{background:var(--accent-soft)}
+.metrics-table tbody tr.me:hover td{background:var(--accent-soft)}
 .metrics-table tbody tr.me td:first-child{font-weight:600}
-.metrics-table td small{display:block; font-family:"DM Mono",monospace; font-size:11px; color:var(--ink-3)}
+.metrics-table td small{display:block; font-family:var(--f-mono); font-size:10.5px; color:var(--ink-3)}
 
 /* ── methodology ──────────────────────────────────────────────────────── */
 .steps{counter-reset:st; display:grid; grid-template-columns:repeat(auto-fit,minmax(238px,1fr)); gap:1px;
-  background:var(--line); border:1px solid var(--line); border-radius:14px; overflow:hidden}
+  background:var(--line); border:1px solid var(--line); border-radius:15px; overflow:hidden;
+  box-shadow:var(--e1)}
 @media (min-width:760px){ .steps{grid-template-columns:repeat(3,minmax(0,1fr))} }
 .step{background:var(--surface); padding:18px}
 .step::before{
   counter-increment:st; content:counter(st,decimal-leading-zero);
-  font-family:"DM Mono",monospace; font-size:11.5px; color:var(--s1); letter-spacing:.08em;
+  font-family:var(--f-mono); font-size:11px; color:var(--s1); letter-spacing:.14em;
 }
 .step h3{margin:7px 0 6px; font-size:15px}
 .step p{font-size:13.5px; color:var(--ink-2)}
-.step code{font-family:"DM Mono",monospace; font-size:12px; color:var(--ink)}
+.step code{font-family:var(--f-mono); font-size:12px; color:var(--ink)}
 
 /* ── footer ───────────────────────────────────────────────────────────── */
 footer{border-top:1px solid var(--line)}
 footer .wrap{display:flex; gap:14px 28px; flex-wrap:wrap; justify-content:space-between;
   padding-block:22px 34px; font-size:13.5px; color:var(--ink-2)}
-footer .mono{font-size:12px; color:var(--ink-3)}
+footer .mono{font-size:11.5px; color:var(--ink-3)}
 
 /* ── responsive ───────────────────────────────────────────────────────── */
 @media (max-width:1000px){
@@ -455,9 +655,17 @@ footer .mono{font-size:12px; color:var(--ink-3)}
   .tbtn{margin-left:auto}
   .lrow dd{font-size:15.5px}
   .caveat{font-size:13px}
+  .ramp-legend{gap:9px}
+  .atlas-sel{margin-left:0}
+}
+@media print{
+  .reveal{opacity:1 !important; transform:none !important}
 }
 @media (prefers-reduced-motion:reduce){
   *{transition:none !important; animation:none !important; scroll-behavior:auto !important}
+  .reveal{opacity:1 !important; transform:none !important}
+  .tile:hover,.tile:focus-visible,.tile.sel{transform:none}
+  .tiles:hover .tile:not(:hover){filter:none}
 }
 </style>
 </head>
@@ -494,6 +702,7 @@ footer .mono{font-size:12px; color:var(--ink-3)}
       <span id="themeLabel">Dark</span>
     </button>
   </div>
+  <span class="progress" id="progress" aria-hidden="true"></span>
 </header>
 
 <main>
@@ -638,9 +847,12 @@ footer .mono{font-size:12px; color:var(--ink-3)}
         <div class="slip-body">
           <p class="warn" id="baselineNote" role="status"><span class="ic" aria-hidden="true">!</span><span id="baselineNoteText"></span></p>
           <p class="eyebrow">Estimated price</p>
-          <p class="figure" id="figure" role="status" aria-live="polite">
-            <span class="cur">₹</span><span id="figVal">—</span><span class="unit">Cr</span>
-          </p>
+          <div class="fig-wrap" id="figWrap">
+            <p class="figure" id="figure" aria-hidden="true">
+              <span class="cur">₹</span><span id="figVal">—</span><span class="unit">Cr</span>
+            </p>
+          </div>
+          <p class="sr" id="figSr" role="status" aria-live="polite">—</p>
           <p class="fig-sub" id="accuracyNote">—</p>
           <p class="fig-sub" id="bandNote">The band below is the model's 10th-to-90th-percentile error, so eight out of ten
              listings land inside it.</p>
@@ -710,6 +922,7 @@ footer .mono{font-size:12px; color:var(--ink-3)}
         <span class="ramp" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
         <span class="mono" id="rampHi">—</span>
         <span style="color:var(--ink-3)">median ₹/sq.ft. · <span id="rampSteps">8</span> equal-count steps</span>
+        <span class="atlas-sel" id="atlasSel"><i aria-hidden="true"></i>outlined: <span id="atlasSelName">—</span></span>
         <span style="margin-left:auto; color:var(--ink-3)" id="atlasCount">—</span>
       </div>
       <details>
@@ -1257,6 +1470,59 @@ function currentQuery(){
   };
 }
 
+/* ── the estimate, alive ──────────────────────────────────────────────────
+   The headline ₹ figure counts from whatever it was showing to the new
+   number over ~220ms, and a hairline wipes under it once — the slip
+   re-printing. The digits are set in tabular figures so nothing reflows
+   mid-count. Two rules it must obey:
+     · prefers-reduced-motion -> the number simply lands, no count, no wipe;
+     · the counting digits are aria-hidden and the spoken value goes to
+       #figSr after the number settles, so a screen reader hears one price
+       rather than sixty intermediate ones. */
+const REDUCE = window.matchMedia('(prefers-reduced-motion: reduce)');
+const figVal = $('figVal'), figWrap = $('figWrap'), figSr = $('figSr'), slipEl = $('slip');
+let figShown = null, figRaf = 0, figSrTimer = 0, slipTimer = 0;
+
+function setFigure(v){
+  const target = +v.toFixed(2);
+  if (figSr){
+    clearTimeout(figSrTimer);
+    figSrTimer = setTimeout(() => {
+      figSr.textContent = 'Estimated price ₹' + target.toFixed(2) + ' crore';
+    }, 280);
+  }
+  if (figShown === null || REDUCE.matches){
+    cancelAnimationFrame(figRaf);
+    figShown = target; figVal.textContent = target.toFixed(2);
+    return;
+  }
+  if (Math.abs(target - figShown) < 0.005) return;
+
+  /* the acknowledgement: one wipe under the figure, one blink of the serial */
+  if (figWrap){
+    figWrap.classList.remove('printing');
+    void figWrap.offsetWidth;          /* restart the animation */
+    figWrap.classList.add('printing');
+  }
+  if (slipEl){
+    slipEl.classList.add('printing');
+    clearTimeout(slipTimer);
+    slipTimer = setTimeout(() => slipEl.classList.remove('printing'), 60);
+  }
+
+  const from = figShown, t0 = performance.now(), dur = 220;
+  cancelAnimationFrame(figRaf);
+  const step = now => {
+    const p = Math.min(1, (now - t0) / dur);
+    const eased = 1 - Math.pow(1 - p, 3);
+    figShown = from + (target - from) * eased;
+    figVal.textContent = figShown.toFixed(2);
+    if (p < 1){ figRaf = requestAnimationFrame(step); }
+    else { figShown = target; figVal.textContent = target.toFixed(2); }
+  };
+  figRaf = requestAnimationFrame(step);
+}
+
 /* ── render ───────────────────────────────────────────────────────────── */
 let ladderChart = null, scatterChart = null, residChart = null, impChart = null;
 
@@ -1282,10 +1548,7 @@ function render(){
   el.areaR.value = q.area;
 
   /* the slip */
-  const fig = $('figure');
-  fig.classList.add('flash');
-  setTimeout(() => fig.classList.remove('flash'), 20);
-  $('figVal').textContent = e.price.toFixed(2);
+  setFigure(e.price);
   $('bandLo').textContent = cr(e.lo);
   $('bandHi').textContent = cr(e.hi);
   const spec = [titleCase(q.sector)];
@@ -1440,8 +1703,10 @@ DATA.sectors.slice().sort((a, b) => cmpSector(a.name, b.name)).forEach(s => {
   b.innerHTML = shortSector(s.name).slice(0, 6) + '<em>' + Math.round(s.median_ppsf / 1000) + 'k</em>';
   b.setAttribute('aria-label', titleCase(s.name) + ': median ' + ppsfFmt(s.median_ppsf) +
     ' per sq.ft., median price ' + cr(s.median_price_cr) + ', ' + s.n + ' listings. Select this sector.');
-  const html = '<b>' + titleCase(s.name) + '</b><br>' + ppsfFmt(s.median_ppsf) + ' / sq.ft.<br>median ' +
-               cr(s.median_price_cr) + '<br>' + s.n + ' listings';
+  const html = '<b>' + titleCase(s.name) + '</b>'
+             + ppsfFmt(s.median_ppsf) + ' <s>median ₹/sq.ft.</s><br>'
+             + cr(s.median_price_cr) + ' <s>median price</s><br>'
+             + s.n + ' <s>listings</s>';
   b.addEventListener('mousemove', ev => showTip(html, ev.clientX, ev.clientY));
   b.addEventListener('mouseleave', hideTip);
   b.addEventListener('focus', () => { const r = b.getBoundingClientRect(); showTip(html, r.right - 8, r.top); });
@@ -1450,8 +1715,20 @@ DATA.sectors.slice().sort((a, b) => cmpSector(a.name, b.name)).forEach(s => {
   tilesWrap.appendChild(b);
 });
 
+/* The outlined tile, plus the same fact in words beside the ramp — a ring
+   alone is colour/shape-only. A locality with fewer than 30 listings has no
+   tile at all, so the readout hides rather than naming a tile that isn't
+   there. */
 function markSelectedSector(name){
-  tilesWrap.querySelectorAll('.tile').forEach(t => t.classList.toggle('sel', t.dataset.name === name));
+  let hit = false;
+  tilesWrap.querySelectorAll('.tile').forEach(t => {
+    const on = t.dataset.name === name;
+    if (on) hit = true;
+    t.classList.toggle('sel', on);
+  });
+  const box = $('atlasSel'), lab = $('atlasSelName');
+  if (box) box.style.display = hit ? '' : 'none';
+  if (lab && hit) lab.textContent = titleCase(name);
 }
 
 const stb = document.querySelector('#sectorTable tbody');
@@ -1513,6 +1790,10 @@ const mtb = document.querySelector('#metricsTable tbody');
 /* ── charts ───────────────────────────────────────────────────────────── */
 const css = () => getComputedStyle(document.documentElement);
 const C = n => css().getPropertyValue(n).trim();
+/* The charts wear the page's own faces, read from the same two tokens the
+   CSS uses, so there is exactly one place a typeface is named. */
+const FB = () => C('--f-body') || 'system-ui, sans-serif';
+const FM = () => C('--f-mono') || 'ui-monospace, monospace';
 
 /* Feature importances come straight from the payload — the trained estimator's
    own feature_importances_, keyed by feature name — so this page can never
@@ -1555,7 +1836,7 @@ function bandLines(){
         ctx.beginPath(); ctx.moveTo(x, chartArea.top); ctx.lineTo(x, chartArea.bottom); ctx.stroke();
       });
       ctx.fillStyle = C('--s2');
-      ctx.font = '500 10px "DM Mono", monospace';
+      ctx.font = '500 10px ' + FM();
       ctx.textBaseline = 'top';
       ctx.textAlign = 'right';
       ctx.fillText('10th', toX(DATA.band[0]) - 5, chartArea.top + 2);
@@ -1572,20 +1853,26 @@ function chartOn(id, spec){ const c = $(id); return c ? new Chart(c, spec) : nul
 
 function buildCharts(){
   if (typeof Chart === 'undefined') return;
-  Chart.defaults.font.family = '"Public Sans", system-ui, sans-serif';
+  Chart.defaults.font.family = FB();
   Chart.defaults.font.size = 11;
   Chart.defaults.color = C('--ink-3');
   Chart.defaults.borderColor = C('--hair');
   Chart.defaults.maintainAspectRatio = false;
-  Chart.defaults.animation = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? false : {duration: 320};
-  Chart.defaults.plugins.tooltip.backgroundColor = C('--ink');
-  Chart.defaults.plugins.tooltip.titleColor = C('--plane');
-  Chart.defaults.plugins.tooltip.bodyColor = C('--plane');
-  Chart.defaults.plugins.tooltip.padding = 9;
-  Chart.defaults.plugins.tooltip.cornerRadius = 7;
+  Chart.defaults.animation = REDUCE.matches ? false : {duration: 320};
+  /* One tooltip for the whole page: the same elevated surface, hairline and
+     shadow the atlas tiles use, so a hover reads identically wherever it
+     happens. Title in the body face, figures in mono. */
+  Chart.defaults.plugins.tooltip.backgroundColor = C('--surface');
+  Chart.defaults.plugins.tooltip.titleColor = C('--ink');
+  Chart.defaults.plugins.tooltip.bodyColor = C('--ink-2');
+  Chart.defaults.plugins.tooltip.borderColor = C('--line');
+  Chart.defaults.plugins.tooltip.borderWidth = 1;
+  Chart.defaults.plugins.tooltip.padding = 10;
+  Chart.defaults.plugins.tooltip.cornerRadius = 9;
   Chart.defaults.plugins.tooltip.displayColors = false;
-  Chart.defaults.plugins.tooltip.titleFont = {family: '"DM Mono", monospace', size: 11, weight: '500'};
-  Chart.defaults.plugins.tooltip.bodyFont = {family: '"DM Mono", monospace', size: 11};
+  Chart.defaults.plugins.tooltip.titleMarginBottom = 5;
+  Chart.defaults.plugins.tooltip.titleFont = {family: FB(), size: 13, weight: '600'};
+  Chart.defaults.plugins.tooltip.bodyFont = {family: FM(), size: 11};
 
   const grid = {color: C('--hair'), drawTicks: false, lineWidth: 1};
   const noGrid = {display: false};
@@ -1605,7 +1892,7 @@ function buildCharts(){
       plugins: {legend: {display: false}, tooltip: {callbacks: {
         title: i => titleCase(lad[i[0].dataIndex].name),
         label: i => 'median ' + cr(i.parsed.y) + ' · ' + ppsfFmt(lad[i.dataIndex].median_ppsf) + '/sq.ft. · ' + lad[i.dataIndex].n + ' listings'}}},
-      scales: {x: {grid: noGrid, border: {color: C('--line')}, ticks: {autoSkip: false, maxRotation: 90, minRotation: 90, font: {family: '"DM Mono", monospace', size: 10}}},
+      scales: {x: {grid: noGrid, border: {color: C('--line')}, ticks: {autoSkip: false, maxRotation: 90, minRotation: 90, font: {family: FM(), size: 10}}},
                y: {grid: grid, border: {display: false}, ticks: {callback: v => '₹' + v + ' Cr'}}}
     }
   });
@@ -1625,9 +1912,9 @@ function buildCharts(){
     type: 'scatter',
     data: {datasets: [
       {label: (HAS('is_house') ? 'Flat (' : 'Listings (') + flats.length + ')', data: flats, backgroundColor: C('--s1'),
-       pointRadius: 3.4, pointHoverRadius: 6, borderColor: ring, borderWidth: 1.5, hitRadius: 8},
+       pointRadius: 3.6, pointHoverRadius: 7, borderColor: ring, borderWidth: 2, hitRadius: 9},
       {label: 'House (' + houses.length + ')', data: houses, hidden: !HAS('is_house'), backgroundColor: C('--s2'),
-       pointRadius: 3.4, pointHoverRadius: 6, borderColor: ring, borderWidth: 1.5, hitRadius: 8}]},
+       pointRadius: 3.6, pointHoverRadius: 7, borderColor: ring, borderWidth: 2, hitRadius: 9}]},
     options: {
       plugins: {
         legend: {display: true, position: 'top', align: 'end',
@@ -1653,7 +1940,7 @@ function buildCharts(){
         title: i => 'log error ' + edges[i[0].dataIndex].toFixed(2) + ' to ' + edges[i[0].dataIndex + 1].toFixed(2),
         label: i => IN(i.parsed.y) + ' listings'}}},
       scales: {x: {grid: noGrid, border: {color: C('--line')},
-                   ticks: {maxTicksLimit: 7, font: {family: '"DM Mono", monospace', size: 10}}},
+                   ticks: {maxTicksLimit: 7, font: {family: FM(), size: 10}}},
                y: {grid: grid, border: {display: false}, title: {display: true, text: 'listings', color: C('--ink-3')}}}
     },
     plugins: [bandLines()]
@@ -1681,7 +1968,7 @@ function buildCharts(){
         const {ctx} = chart;
         ctx.save();
         ctx.fillStyle = C('--ink');
-        ctx.font = '600 11.5px "Public Sans", sans-serif';
+        ctx.font = '600 11.5px ' + FB();
         ctx.textBaseline = 'middle';
         chart.getDatasetMeta(0).data.forEach((bar, i) => {
           ctx.fillText((IMPORTANCES[i][1] * 100).toFixed(1) + '%', bar.x + 8, bar.y);
@@ -1746,6 +2033,55 @@ window.addEventListener('scroll', hideTip, {passive: true});
 
 buildCharts();
 render();
+
+/* ── reading the page ─────────────────────────────────────────────────────
+   Two scroll affordances, both cheap and both optional:
+
+   1. how far down the document you are, as a 2px rule along the topbar's
+      bottom edge. It is a position readout, not an animation, so it stays
+      on under reduced motion — it just never transitions.
+   2. sections after the first fade up once as they arrive. The .reveal
+      class is only ever ADDED BY THIS SCRIPT, so with JavaScript off (or
+      if this block throws) every section is simply visible; and under
+      prefers-reduced-motion the class is never added at all. */
+{
+  const bar = $('progress');
+  /* Sections after the first. They are marked .reveal here and never in the
+     markup, so with JavaScript off every one of them is simply visible. */
+  let pending = REDUCE.matches
+    ? []
+    : Array.from(document.querySelectorAll('main > section')).slice(1);
+  pending.forEach(s => s.classList.add('reveal'));
+
+  let queued = false;
+  const paint = () => {
+    queued = false;
+    if (bar){
+      const doc = document.documentElement;
+      const max = doc.scrollHeight - window.innerHeight;
+      bar.style.transform = 'scaleX(' + (max > 0 ? Math.min(1, doc.scrollTop / max) : 0) + ')';
+    }
+    if (pending.length){
+      const edge = window.innerHeight - 70;
+      /* Deliberately a plain scroll sweep rather than an IntersectionObserver:
+         one handler already runs for the progress rule, and a section can
+         never be left permanently invisible by an observer that failed to
+         deliver its first callback. */
+      pending = pending.filter(s => {
+        if (s.getBoundingClientRect().top > edge) return true;
+        s.classList.add('in');
+        return false;
+      });
+    }
+  };
+  const schedule = () => { if (!queued){ queued = true; requestAnimationFrame(paint); } };
+  window.addEventListener('scroll', schedule, {passive: true});
+  window.addEventListener('resize', schedule, {passive: true});
+  window.addEventListener('load', paint);
+  paint();
+}
+
+console.log('HomeCast — designed and built by Safdar Hussain · github.com/safdar-hussain1/homecast');
 </script>
 </body>
 </html>
