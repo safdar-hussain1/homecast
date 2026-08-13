@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import pandas as pd
 
+from homecast.cities import get_city
+
 # Raw column name -> tidy snake_case name.
 COLUMN_RENAMES = {
     "bedRoom": "bedrooms",
@@ -94,15 +96,23 @@ def clean_raw_data(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
     return df, log
 
 
-from homecast.cities import get_city
-
 # Per-city pipeline registry; each entry is the city's clean function
 # (raw DataFrame) -> (cleaned DataFrame, step log).
 PIPELINES = {"gurgaon": clean_raw_data}
 
 
-def clean_city(key: str):
+def clean_city(key: str) -> tuple[pd.DataFrame, list[str]]:
     """Load a city's raw feed and run its cleaning pipeline."""
     city = get_city(key)
-    pipeline = PIPELINES[city.key]
+    try:
+        pipeline = PIPELINES[city.key]
+    except KeyError:
+        # Adding a city is two steps (registry entry, then pipeline entry).
+        # Stopping after the first used to surface as a bare KeyError.
+        raise ValueError(
+            f"City '{city.key}' is registered but has no cleaning pipeline. "
+            f"Add an entry for '{city.key}' to PIPELINES in "
+            f"src/homecast/cleaning.py — a function taking the raw DataFrame "
+            f"and returning (cleaned DataFrame, step log). "
+            f"Pipelines available: {', '.join(sorted(PIPELINES))}") from None
     return pipeline(load_raw(city.raw_path))

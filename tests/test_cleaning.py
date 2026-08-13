@@ -1,4 +1,3 @@
-import pandas as pd
 import pytest
 
 from homecast.cleaning import clean_raw_data, clean_city
@@ -35,4 +34,14 @@ def test_clean_city_gurgaon_real_data():
 
 def test_clean_city_unknown():
     with pytest.raises(ValueError):
+        clean_city("atlantis")
+
+def test_clean_city_registered_but_unpipelined(monkeypatch, tmp_path):
+    """Adding a city is two steps; stopping after the registry entry must give
+    an actionable message, not a bare KeyError."""
+    import homecast.cities as cities
+    monkeypatch.setitem(cities.CITIES, "atlantis", cities.City(
+        "atlantis", "Atlantis", tmp_path / "raw.csv",
+        tmp_path / "clean.csv", tmp_path / "models"))
+    with pytest.raises(ValueError, match="PIPELINES"):
         clean_city("atlantis")

@@ -54,3 +54,29 @@ def test_comparables_falls_back_when_sector_unknown(clean_fixture):
 def test_bad_furnishing_rejected(fitted):
     with pytest.raises(ValueError, match="furnishing"):
         estimate(fitted, q(furnishing="gold-plated"))
+
+def test_unknown_sector_rejected(fitted):
+    """A case typo must fail loudly, not fall back to the global median."""
+    with pytest.raises(ValueError, match="Unknown sector 'Sector 1'"):
+        estimate(fitted, q(sector="Sector 1"))
+
+def test_global_fallback_key_is_not_a_usable_sector(fitted):
+    with pytest.raises(ValueError, match="Unknown sector"):
+        estimate(fitted, q(sector="__global__"))
+
+def test_unknown_age_rejected(fitted):
+    """An unrecognised age string used to be silently coded as 'missing'."""
+    with pytest.raises(ValueError, match="Unknown age 'Brand New'"):
+        estimate(fitted, q(age="Brand New"))
+
+def test_age_none_is_allowed(fitted):
+    assert estimate(fitted, q(age=None))["price_cr"] > 0
+
+@pytest.mark.parametrize("field,value", [
+    ("bedrooms", 99),
+    ("bathrooms", 99),
+    ("luxury_score", 5000),
+])
+def test_out_of_range_numeric_inputs_rejected(fitted, field, value):
+    with pytest.raises(ValueError, match=f"{field} {value} outside supported range"):
+        estimate(fitted, q(**{field: value}))

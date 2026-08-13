@@ -46,6 +46,34 @@ def test_predict_out_of_range_is_friendly(city_env, capsys):
     assert rc == 2
     assert "range" in capsys.readouterr().err.lower()
 
+def test_predict_unknown_sector_is_friendly(city_env, capsys):
+    """A case typo in the sector must exit 2 with a message, not a wrong price."""
+    cli.main(["train"])
+    rc = cli.main(["predict", "--sector", "Sector 1", "--type", "flat",
+                   "--bhk", "3", "--bath", "2", "--area", "1500",
+                   "--furnishing", "semi-furnished", "--luxury", "50"])
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert "error:" in err and "Unknown sector 'Sector 1'" in err
+
+def test_predict_unknown_age_is_friendly(city_env, capsys):
+    cli.main(["train"])
+    rc = cli.main(["predict", "--sector", "sector 1", "--type", "flat",
+                   "--bhk", "3", "--bath", "2", "--area", "1500",
+                   "--furnishing", "semi-furnished", "--luxury", "50",
+                   "--age", "Brand New"])
+    assert rc == 2
+    assert "Unknown age" in capsys.readouterr().err
+
+def test_clean_city_registered_without_pipeline_is_friendly(monkeypatch, tmp_path, capsys):
+    """`--city <registered-but-unpipelined>` must not raise a raw KeyError."""
+    import homecast.cities as cities
+    monkeypatch.setitem(cities.CITIES, "atlantis", cities.City(
+        "atlantis", "Atlantis", tmp_path / "raw.csv",
+        tmp_path / "clean.csv", tmp_path / "models"))
+    assert cli.main(["clean", "--city", "atlantis"]) == 2
+    assert "PIPELINES" in capsys.readouterr().err
+
 def test_unknown_city_is_friendly(capsys):
     assert cli.main(["clean", "--city", "atlantis"]) == 2
     assert "gurgaon" in capsys.readouterr().err
