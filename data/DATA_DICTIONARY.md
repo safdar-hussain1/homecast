@@ -95,4 +95,18 @@ building's loading factor. `homecast ingest` (`src/homecast/ingest.py`)
 requires every new city's ingestion config to declare its `area_basis`
 explicitly and stamps it onto every ingested row for exactly this reason:
 never assume, and never silently compare, `price_per_sqft` across cities
-without checking this first.
+without checking this first. Re-ingesting a city whose config declares a
+*different* `area_basis` than what is already recorded for it (from a prior
+ingestion) is refused outright, not silently overwritten — see
+`ingest_city`'s `existing_processed_path` argument.
+
+**Plausibility checks are median-based**, both the global one and the
+optional per-city one below — a unit error affecting only a minority of rows
+will not move the median enough to be caught. An ingestion config may also
+declare an optional `expected_ppsf_range = [low, high]`, a city-specific
+₹/sq.ft. band checked *in addition to* the global `PPSF_BAND` (which alone
+is loose enough to admit an all-prime-South-Mumbai dataset, and therefore
+~15x too loose to catch, say, a sq.yd plot declared as sq.ft in a low-rate
+market like Amaravathi). Declare it once a city's real market range is
+known; see `config/amaravathi.rates.example.toml` for the sibling reference
+config format.

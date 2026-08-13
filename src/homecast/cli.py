@@ -55,7 +55,8 @@ def _do_clean(city) -> None:
 
 
 def _do_ingest(city, config_path: str) -> None:
-    cleaned, log = ingest_city(city.raw_path, Path(config_path))
+    cleaned, log = ingest_city(city.raw_path, Path(config_path),
+                               existing_processed_path=city.processed_path)
     city.processed_path.parent.mkdir(parents=True, exist_ok=True)
     cleaned.to_csv(city.processed_path, index=False)
     for line in log:

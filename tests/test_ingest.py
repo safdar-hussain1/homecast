@@ -222,6 +222,122 @@ def test_ingest_silent_for_other_cities_even_with_odd_localities(tmp_path):
     df, log = ingest_city(raw, cfg)
     assert not any("Maharashtra" in line for line in log)
 
+def test_ingest_warns_even_when_city_key_defaults_from_a_amaravathi_filename_stem(tmp_path):
+    """I9: load_config defaults city_key to the config file's stem when it
+    isn't declared explicitly. A config saved as amaravathi.toml (stem
+    'amaravathi', not the exact 'amaravathi_ap') must still trigger the
+    guard -- an exact-match check would silently skip it."""
+    no_explicit_key = GOOD_CONFIG.replace('city_key = "testcity"\n', '')
+    raw_df = _good_raw_df(n=6, locality=["Thullur"] * 3 + ["Amravati, Maharashtra"] * 3)
+    raw = _write_csv(tmp_path / "raw.csv", raw_df)
+    cfg = _write_config(tmp_path / "amaravathi.toml", no_explicit_key)
+    df, log = ingest_city(raw, cfg)
+    assert any("Maharashtra" in line for line in log)
+
+
+# --- area_basis consistency across re-ingestion (Task I7) -----------------
+
+def test_reingest_with_a_different_area_basis_is_rejected(tmp_path):
+    raw = _write_csv(tmp_path / "raw.csv", _good_raw_df())
+    cfg = _write_config(tmp_path / "config.toml", GOOD_CONFIG)  # declares superbuiltup
+    processed = tmp_path / "processed.csv"
+    df, _ = ingest_city(raw, cfg)
+    df.to_csv(processed, index=False)
+
+    changed_basis = GOOD_CONFIG.replace('area_basis = "superbuiltup"', 'area_basis = "carpet"')
+    changed_cfg = _write_config(tmp_path / "config2.toml", changed_basis)
+    with pytest.raises(ValueError, match="area_basis"):
+        ingest_city(raw, changed_cfg, existing_processed_path=processed)
+
+def test_reingest_with_the_same_area_basis_is_allowed(tmp_path):
+    raw = _write_csv(tmp_path / "raw.csv", _good_raw_df())
+    cfg = _write_config(tmp_path / "config.toml", GOOD_CONFIG)
+    processed = tmp_path / "processed.csv"
+    df, _ = ingest_city(raw, cfg)
+    df.to_csv(processed, index=False)
+
+    df2, _ = ingest_city(raw, cfg, existing_processed_path=processed)
+    assert (df2["area_basis"] == "superbuiltup").all()
+
+def test_first_ingestion_with_no_existing_processed_file_is_unaffected(tmp_path):
+    """existing_processed_path pointing at a file that doesn't exist yet (the
+    very first ingestion for a city) must not raise."""
+    raw = _write_csv(tmp_path / "raw.csv", _good_raw_df())
+    cfg = _write_config(tmp_path / "config.toml", GOOD_CONFIG)
+    df, _ = ingest_city(raw, cfg, existing_processed_path=tmp_path / "does_not_exist.csv")
+    assert (df["area_basis"] == "superbuiltup").all()
+
+
+# --- per-city expected_ppsf_range (Task I8) --------------------------------
+
+def _sqyd_declared_as_sqft_raw_df():
+    """200-500 sq.yd plots, entered directly as if they were already sq.ft
+    (no 9x conversion applied) -- median declared area lands at 350, still
+    comfortably inside AREA_BAND, and a constant Rs 67,148/sq.ft. median
+    lands comfortably inside the global PPSF_BAND (1,000-100,000) too. Both
+    global checks pass; only a tighter, city-specific expected_ppsf_range
+    catches this."""
+    area_sqft = [200, 250, 300, 350, 400, 450, 500]
+    ppsf = 67_148.0
+    price_lakh = [ppsf * a / 1e5 for a in area_sqft]
+    return _good_raw_df(n=len(area_sqft), price_lakh=price_lakh, area_sqft=area_sqft)
+
+def test_sqyd_as_sqft_error_slips_through_without_a_per_city_range(tmp_path):
+    """Documents the known gap I8 exists to close: the global bands alone
+    let this through silently."""
+    raw = _write_csv(tmp_path / "raw.csv", _sqyd_declared_as_sqft_raw_df())
+    cfg = _write_config(tmp_path / "config.toml", GOOD_CONFIG)
+    df, _ = ingest_city(raw, cfg)  # does not raise
+    assert df["area"].median() == pytest.approx(350.0)
+
+def test_sqyd_as_sqft_error_is_caught_with_a_per_city_range(tmp_path):
+    # Must be inserted BEFORE the `[columns]` table header -- appended after
+    # it, a bare `key = value` line would parse as columns.expected_ppsf_range
+    # (TOML: unheadered keys belong to the most recently opened table).
+    tight_range_config = GOOD_CONFIG.replace(
+        "\n[columns]", "\nexpected_ppsf_range = [3000, 8000]\n\n[columns]")
+    raw = _write_csv(tmp_path / "raw.csv", _sqyd_declared_as_sqft_raw_df())
+    cfg = _write_config(tmp_path / "config.toml", tight_range_config)
+    with pytest.raises(ValueError, match="expected_ppsf_range"):
+        ingest_city(raw, cfg)
+
+def test_expected_ppsf_range_is_optional(tmp_path):
+    """A config with no expected_ppsf_range at all must ingest exactly as
+    before -- this is an additive, opt-in check."""
+    raw = _write_csv(tmp_path / "raw.csv", _good_raw_df())
+    cfg = _write_config(tmp_path / "config.toml", GOOD_CONFIG)
+    cfg_obj = load_config(cfg)
+    assert cfg_obj.expected_ppsf_range is None
+
+def test_invalid_expected_ppsf_range_is_rejected(tmp_path):
+    bad_range_config = GOOD_CONFIG.replace(       # low > high
+        "\n[columns]", "\nexpected_ppsf_range = [8000, 3000]\n\n[columns]")
+    cfg = _write_config(tmp_path / "config.toml", bad_range_config)
+    with pytest.raises(ValueError, match="expected_ppsf_range"):
+        load_config(cfg)
+
+
+# --- duplicate rename targets (Task M16) -----------------------------------
+
+def test_two_targets_mapped_to_the_same_raw_column_is_rejected(tmp_path):
+    dup_config = GOOD_CONFIG.replace('area = "area_sqft"', 'area = "price_lakh"')  # both -> price_lakh/area now collide
+    raw = _write_csv(tmp_path / "raw.csv", _good_raw_df())
+    cfg = _write_config(tmp_path / "config.toml", dup_config)
+    with pytest.raises(ValueError, match="more than one target field"):
+        ingest_city(raw, cfg)
+
+def test_source_column_colliding_with_a_rename_target_is_rejected(tmp_path):
+    """The raw CSV already has a column literally called 'price' (not one of
+    the declared source columns) while 'price_lakh' is separately mapped to
+    become 'price' -- pandas' rename() would silently produce two 'price'
+    columns."""
+    raw_df = _good_raw_df()
+    raw_df["price"] = 999.0  # pre-existing column that collides with the rename target
+    raw = _write_csv(tmp_path / "raw.csv", raw_df)
+    cfg = _write_config(tmp_path / "config.toml", GOOD_CONFIG)
+    with pytest.raises(ValueError, match="collide"):
+        ingest_city(raw, cfg)
+
 
 # --- CLI wiring -------------------------------------------------------
 
