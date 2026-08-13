@@ -319,6 +319,77 @@ def test_invalid_expected_ppsf_range_is_rejected(tmp_path):
         load_config(cfg)
 
 
+# --- per-row price_per_sqft plausibility filter (Correction 1) ------------
+#
+# expected_ppsf_range previously only gated the dataset's MEDIAN
+# (_plausibility_check): a single implausible row survived untouched as long
+# as it didn't drag the median out of band. These prove the genuine per-row
+# trim added on top of that median gate.
+
+def _ppsf_band_config(lo, hi):
+    return _config_with_top_level(f"expected_ppsf_range = [{lo}, {hi}]")
+
+
+def test_row_level_ppsf_filter_drops_exactly_the_out_of_band_rows(tmp_path):
+    """3 rows below the band, 5 inside, 2 above. The median of all ten is
+    5,000 -- comfortably inside [3000, 8000], so the median gate
+    (_plausibility_check) does not reject the file; only a genuine per-row
+    filter can catch the 5 rows that are individually out of band."""
+    area = 1600.0
+    ppsf_values = [1000, 1000, 1000, 5000, 5000, 5000, 5000, 5000, 9000, 9000]
+    price_lakh = [p * area / 1e5 for p in ppsf_values]
+    raw_df = _flat_raw_df(len(ppsf_values), price_lakh=price_lakh,
+                          area_sqft=[area] * len(ppsf_values))
+    raw = _write_csv(tmp_path / "raw.csv", raw_df)
+    cfg = _write_config(tmp_path / "config.toml", _ppsf_band_config(3000, 8000))
+    df, log = ingest_city(raw, cfg)
+    assert len(df) == 5
+    assert df["price_per_sqft"].tolist() == pytest.approx([5000.0] * 5)
+
+
+def test_row_level_ppsf_filter_count_appears_in_the_log(tmp_path):
+    area = 1600.0
+    ppsf_values = [1000, 1000, 1000, 5000, 5000, 5000, 5000, 5000, 9000, 9000]
+    price_lakh = [p * area / 1e5 for p in ppsf_values]
+    raw_df = _flat_raw_df(len(ppsf_values), price_lakh=price_lakh,
+                          area_sqft=[area] * len(ppsf_values))
+    raw = _write_csv(tmp_path / "raw.csv", raw_df)
+    cfg = _write_config(tmp_path / "config.toml", _ppsf_band_config(3000, 8000))
+    _, log = ingest_city(raw, cfg)
+    trim_lines = [l for l in log if "expected_ppsf_range" in l]
+    assert trim_lines, f"no per-row ppsf trim line in the ingestion log: {log}"
+    assert any("5 row(s) removed" in l and "5 remain" in l for l in trim_lines)
+
+
+def test_row_level_ppsf_filter_is_a_noop_without_a_configured_bound(tmp_path):
+    """A config that declares no expected_ppsf_range must ingest exactly as
+    before: the per-row filter has no band to check a row against, so a city
+    with no bound configured (e.g. Gurgaon, which never reaches this module
+    at all) is completely untouched by this feature.
+
+    Two tight clusters (2,000 and 9,000 Rs/sq.ft.) rather than one extreme
+    outlier each: with only 20 rows, a single genuine outlier would be
+    removed by the UNRELATED, pre-existing 0.5th/99.5th percentile trim
+    (trim_outliers) regardless of this feature, which would make this test
+    pass for the wrong reason. Two ten-row clusters put the 0.5th/99.5th
+    percentile bounds exactly AT the cluster values, so that generic trim
+    keeps every row -- isolating what's actually under test: that with no
+    expected_ppsf_range declared, the NEW per-row filter removes nothing,
+    even though every one of these rows would be dropped by a [3000, 8000]
+    band like the one used in the tests above."""
+    area = 1600.0
+    ppsf_values = [2000] * 10 + [9000] * 10
+    price_lakh = [p * area / 1e5 for p in ppsf_values]
+    raw_df = _flat_raw_df(len(ppsf_values), price_lakh=price_lakh,
+                          area_sqft=[area] * len(ppsf_values))
+    raw = _write_csv(tmp_path / "raw.csv", raw_df)
+    cfg = _write_config(tmp_path / "config.toml", GOOD_CONFIG)  # no expected_ppsf_range
+    assert load_config(cfg).expected_ppsf_range is None
+    df, log = ingest_city(raw, cfg)
+    assert len(df) == len(ppsf_values)
+    assert any("no expected_ppsf_range configured" in l for l in log)
+
+
 # --- duplicate rename targets (Task M16) -----------------------------------
 
 def test_two_targets_mapped_to_the_same_raw_column_is_rejected(tmp_path):

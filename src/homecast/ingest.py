@@ -598,6 +598,44 @@ def _plausibility_check(df: pd.DataFrame, cfg: IngestConfig) -> None:
                 f"alone is too loose to catch in a low-rate market).")
 
 
+def _trim_implausible_ppsf(df: pd.DataFrame,
+                           cfg: IngestConfig) -> tuple[pd.DataFrame, list[str]]:
+    """Drop individual rows whose price_per_sqft falls outside this city's own
+    ``expected_ppsf_range`` -- a genuine PER-ROW plausibility trim, distinct
+    from the median-only gate in ``_plausibility_check`` above.
+
+    ``_plausibility_check`` only ever looks at the file's MEDIAN
+    price_per_sqft: a single mis-typed area, a placeholder price, or an
+    otherwise-corrupted listing can sit far outside the plausible band for
+    this market while the dataset's median stays exactly where it should be
+    -- the median gate has nothing to say about that one row, because a
+    handful of outliers among thousands of listings barely moves a median at
+    all. This is the row-level complement, and both checks are kept: they
+    catch different failures. The median gate catches a wrong unit/basis
+    declaration for the WHOLE file (see its own docstring); this one removes
+    individual implausible LISTINGS once the file's units are already known
+    to be right.
+
+    A no-op -- nothing dropped, the frame returned unchanged -- for a city
+    that declares no ``expected_ppsf_range`` at all (e.g. Gurgaon, which does
+    not go through this module at all, or any city whose config has not
+    stated one yet): there is no per-city band to check a row against, so
+    every row is kept exactly as it is.
+    """
+    if cfg.expected_ppsf_range is None:
+        return df, ["trim rows outside expected_ppsf_range: ok (no "
+                    "expected_ppsf_range configured for this city)"]
+    lo, hi = cfg.expected_ppsf_range
+    keep = df["price_per_sqft"].between(lo, hi)
+    removed = int((~keep).sum())
+    out = df[keep].reset_index(drop=True)
+    name = (f"trim rows outside expected_ppsf_range "
+            f"(Rs {lo:,.0f}-{hi:,.0f}/sq.ft.)")
+    if not removed:
+        return out, [f"{name}: ok"]
+    return out, [f"{name}: {removed} row(s) removed ({len(out)} remain)"]
+
+
 def _area_basis_caveat(cfg: IngestConfig) -> list[str]:
     """Surface an undeclarable area basis as a caveat on every ingestion.
 
@@ -712,6 +750,13 @@ def ingest_city(raw_path: Path, config_path: Path, *,
     log.extend(basis_log)
 
     _plausibility_check(df, cfg)
+
+    # Per-row plausibility trim (Correction 1), on top of -- not instead of
+    # -- the median gate just above. Runs before dedup/amenity/required-column
+    # filtering so its own dropped-row count is not diluted by rows that would
+    # have been removed for some other reason anyway.
+    df, ppsf_trim_log = _trim_implausible_ppsf(df, cfg)
+    log.extend(ppsf_trim_log)
 
     df, amenity_log = _derive_amenity_count(df, cfg)
     log.extend(amenity_log)
