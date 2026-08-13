@@ -190,6 +190,22 @@ def main(argv=None) -> int:
             else:
                 print(f"Estimated price: Rs {e['price_cr']:.2f} Cr "
                       f"(range {e['lo_cr']:.2f} - {e['hi_cr']:.2f} Cr)")
+                # Say which accuracy regime this prediction is in, the way the
+                # dashboard does. A society the model has never seen falls back
+                # to the sector rate and lands in the wider band -- silently
+                # printing the same confident number either way would hide that.
+                matched = (a.society is not None
+                           and a.society in fitted.encoders.society_ppsf)
+                mets = fitted.metrics
+                if matched:
+                    print(f"note: society '{a.society}' matched -- "
+                          f"{mets['model']['mape_pct']:.1f}% MAPE accuracy band")
+                else:
+                    reason = ("no society given" if a.society is None
+                              else f"society '{a.society}' not in the training data")
+                    print(f"note: {reason} -- priced from the sector rate, "
+                          f"{mets['model_no_society']['mape_pct']:.1f}% MAPE "
+                          f"accuracy band")
     except (ValueError, FileNotFoundError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2

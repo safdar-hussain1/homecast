@@ -44,23 +44,6 @@ pip install -e .                  # then the package itself
 homecast train --city gurgaon
 ```
 
-`requirements.txt` is the reproducing environment: install it *before*
-`pip install -e .` so pip resolves those versions rather than the looser
-floors in `pyproject.toml`. The package's own floors are deliberately loose so
-it stays installable on older stacks — but on a materially different
-scikit-learn version the metrics can move in the last decimal or two. Every
-number published in this README and in the model card was produced with:
-
-| Library | Version |
-|---|---|
-| Python | 3.12.13 |
-| pandas | 3.0.3 |
-| NumPy | 2.5.1 |
-| scikit-learn | 1.9.0 |
-| SciPy | 1.18.0 |
-| joblib | 1.5.3 |
-| Matplotlib | 3.11.0 |
-
 Output:
 
 ```
@@ -91,8 +74,18 @@ homecast predict --city gurgaon --sector "sector 65" --type flat \
 Estimated price: Rs 2.71 Cr (range 2.07 - 3.45 Cr)
 ```
 
-(No `--society` given, so this is priced in the "without a society" regime
-above — add `--society "<name>"` for a tighter estimate when you know it.)
+Every prediction states which accuracy regime it is in, so a mistyped society
+can't quietly pass as a matched one:
+
+```
+Estimated price: Rs 2.71 Cr (range 2.07 - 3.45 Cr)
+note: no society given -- priced from the sector rate, 19.9% MAPE accuracy band
+```
+
+Add `--society "<name>"` when you know the building. A name the model has seen
+tightens the estimate and says so (`society 'm3m golfestate' matched -- 18.4%
+MAPE accuracy band`); one it hasn't falls back to the sector rate and says
+*that* instead.
 
 Note the `--city` flag comes **after** the subcommand (`homecast train --city
 gurgaon`, not `homecast --city gurgaon train`) — each subcommand owns its own
@@ -103,6 +96,43 @@ under `models/gurgaon/` are committed, so `train` reproduces the numbers
 above without needing `clean` first (it runs `clean` automatically if the
 cleaned CSV is missing). Run `homecast clean --city gurgaon` directly to see
 the row-by-row cleaning log.
+
+## Every command
+
+The whole tool, in one place. `--city` always comes **after** the subcommand.
+
+```bash
+# --- setup -------------------------------------------------------------
+git clone https://github.com/safdar-hussain1/homecast.git && cd homecast
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt        # pinned, reproduces the published numbers
+pip install -e ".[dev]"                # package + pytest/jupyter
+
+# --- the pipeline ------------------------------------------------------
+homecast clean   --city gurgaon        # raw CSV -> cleaned CSV, logs every row dropped
+homecast train   --city gurgaon        # fit, cross-validate, write model + metrics
+homecast evaluate --city gurgaon       # cross-validated metrics only, writes nothing
+homecast predict --city gurgaon --sector "sector 65" --type flat \
+    --bhk 3 --bath 3 --area 1800 --furnishing semi-furnished --luxury 60
+homecast predict --city gurgaon --sector "sector 65" --type flat \
+    --bhk 3 --bath 3 --area 1800 --furnishing semi-furnished --luxury 60 \
+    --society "m3m golfestate"         # tighter 18.4% regime when you know the building
+
+# --- the dashboard -----------------------------------------------------
+homecast export-dashboard --city gurgaon   # regenerate models/<city>/model.json
+python scripts/build_dashboard.py          # bake it into docs/index.html
+open docs/index.html                       # Linux: xdg-open
+
+# --- bringing your own data --------------------------------------------
+homecast ingest --config path/to/city.toml # map a third-party CSV into the schema
+
+# --- tests -------------------------------------------------------------
+pytest -q                                  # 277 tests
+pytest -q tests/test_model.py              # one file
+```
+
+`homecast --help`, or `homecast <subcommand> --help`, prints the same surface
+with every flag.
 
 ## Results
 
@@ -321,6 +351,25 @@ Python, pandas, NumPy, scikit-learn, joblib, Matplotlib, Jupyter. The
 dashboard's in-browser predictions are plain JavaScript that walks the
 exported gradient-boosted trees directly — no ML runtime in the browser. It
 matches the Python model to about 1e-14 (tested at 1e-9 tolerance).
+
+## Reproducing the published numbers exactly
+
+Install `requirements.txt` *before* `pip install -e .` so pip resolves those
+pinned versions rather than the looser floors in `pyproject.toml`. The
+package's own floors are deliberately loose so it stays installable on older
+stacks — but on a materially different scikit-learn the metrics can move in
+the last decimal or two. Every number in this README and the model card was
+produced with:
+
+| Library | Version |
+|---|---|
+| Python | 3.12.13 |
+| pandas | 3.0.3 |
+| NumPy | 2.5.1 |
+| scikit-learn | 1.9.0 |
+| SciPy | 1.18.0 |
+| joblib | 1.5.3 |
+| Matplotlib | 3.11.0 |
 
 ## Data and licence
 

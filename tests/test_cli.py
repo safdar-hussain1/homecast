@@ -241,3 +241,67 @@ def test_predict_bad_balcony_is_friendly(city_env, capsys):
                    "--balcony", "9"])
     assert rc == 2
     assert "Unknown balcony" in capsys.readouterr().err
+
+
+@pytest.fixture()
+def society_signal_city_env(tmp_path, monkeypatch, raw_fixture):
+    """A city whose price depends on the SOCIETY as well as the sector, so the
+    learned model genuinely beats the sector-median rule of thumb and the
+    model-served branch is reached. servable_raw_fixture prices at exactly
+    sector-rate x area, which makes the baseline optimal by construction and
+    therefore can't exercise this path."""
+    import homecast.cities as cities
+    rng = np.random.default_rng(23)
+    n = 600
+    sectors = rng.choice(["sector 1", "sector 2"], n)
+    socs = rng.choice(["alpha towers", "beta greens", "gamma residency"], n)
+    sector_rate = {"sector 1": 7000.0, "sector 2": 12000.0}
+    soc_mult = {"alpha towers": 0.72, "beta greens": 1.0, "gamma residency": 1.35}
+    area = rng.uniform(600, 2600, n).round()
+    ppsf = np.array([sector_rate[s] * soc_mult[c] for s, c in zip(sectors, socs)])
+    ppsf = ppsf * np.exp(rng.normal(0.0, 0.03, n))
+    price = (area * ppsf / 1e7).round(3)
+
+    base = raw_fixture.iloc[0].to_dict()
+    df = pd.DataFrame([base] * n).reset_index(drop=True)
+    df["sector"], df["society"] = sectors, socs
+    df["area"], df["price_per_sqft"], df["price"] = area, ppsf.round(), price
+    df["bedRoom"] = rng.integers(2, 5, n)
+    df["bathroom"] = rng.integers(1, 4, n)
+    df["property_type"] = "flat"
+    df["balcony"] = rng.choice(["0", "1", "2", "3", "3+"], n)
+    df["agePossession"] = "New Property"
+    df["furnishing_type"] = rng.integers(0, 3, n)
+    df["luxury_score"] = rng.integers(0, 175, n)
+
+    raw = tmp_path / "raw" / "gurgaon_properties.csv"
+    raw.parent.mkdir()
+    df.to_csv(raw, index=False)
+    c = cities.City("gurgaon", "Gurgaon", raw,
+                    tmp_path / "processed" / "listings_clean.csv",
+                    tmp_path / "models")
+    monkeypatch.setitem(cities.CITIES, "gurgaon", c)
+    return c
+
+
+def test_predict_reports_which_accuracy_regime_it_used(society_signal_city_env, capsys):
+    """A mistyped society silently falls back to the sector rate; the CLI must
+    say which regime it used rather than printing an equally confident number
+    either way (the dashboard already does this)."""
+    cli.main(["train"])
+    capsys.readouterr()
+    base = ["predict", "--sector", "sector 1", "--type", "flat", "--bhk", "3",
+            "--bath", "2", "--area", "1500", "--furnishing", "semi-furnished",
+            "--luxury", "50"]
+
+    assert cli.main(base) == 0
+    out = capsys.readouterr().out
+    assert "no society given" in out and "MAPE" in out
+
+    assert cli.main(base + ["--society", "alpha towers"]) == 0
+    out = capsys.readouterr().out
+    assert "matched" in out and "MAPE" in out
+
+    assert cli.main(base + ["--society", "definitely not a real society"]) == 0
+    out = capsys.readouterr().out
+    assert "not in the training data" in out and "MAPE" in out
