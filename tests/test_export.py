@@ -4,7 +4,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from homecast.cities import get_city
+from pathlib import Path
+
+from homecast.cities import City, get_city
 from homecast.features import build_features
 from homecast.model import predict_price, train_final
 from homecast.export import export_city, predict_from_export, write_export
@@ -116,3 +118,124 @@ def test_default_model_still_exports(clean_fixture):
     fitted = train_final(clean_fixture, model="default")
     p = export_city(fitted, clean_fixture, get_city("gurgaon"))
     assert p["model"]["trees"]
+
+
+# --- Exporting a city whose feature set is shorter -------------------------
+
+def _sparse_city_frame(n: int = 120) -> pd.DataFrame:
+    rng = np.random.default_rng(23)
+    area = rng.uniform(500, 2500, n).round()
+    ppsf = rng.uniform(4000, 15000, n).round()
+    return pd.DataFrame({
+        "sector": rng.choice(["andheri", "bandra", "powai"], n),
+        "area": area,
+        "bedrooms": rng.integers(1, 5, n),
+        "price": area * ppsf / 1e7,
+        "price_per_sqft": ppsf,
+        "amenity_count": rng.integers(0, 20, n).astype(float),
+        "is_resale": rng.integers(0, 2, n).astype(float),
+    })
+
+
+@pytest.fixture()
+def sparse_payload():
+    df = _sparse_city_frame()
+    fitted = train_final(df)
+    city = City("sparsetown", "Sparse Town", Path("/x"), Path("/y"),
+                Path("/z"), public=False)
+    return fitted, df, export_city(fitted, df, city)
+
+
+def test_feature_order_is_the_city_s_own_list_not_the_catalogue(sparse_payload):
+    """The browser builds its feature row by iterating feature_order. If the
+    export shipped the full catalogue for a city that trained on six columns,
+    every prediction in the page would be built from the wrong vector."""
+    fitted, _, p = sparse_payload
+    assert p["feature_order"] == list(fitted.columns)
+    assert "society_ppsf" not in p["feature_order"]
+    assert "amenity_count" in p["feature_order"]
+
+
+def test_importances_are_keyed_by_the_city_s_own_features(sparse_payload):
+    fitted, _, p = sparse_payload
+    assert set(p["feature_importances"]) == set(fitted.columns)
+    assert np.isclose(sum(p["feature_importances"].values()), 1.0)
+
+
+def test_sparse_city_export_predicts_identically_to_sklearn(sparse_payload):
+    """The tree-walker parity guarantee has to survive a shorter vector too."""
+    fitted, df, p = sparse_payload
+    X = build_features(df, fitted.encoders, list(fitted.columns))
+    for i in range(0, len(df), 17):
+        assert predict_from_export(p, X.iloc[i].tolist()) == pytest.approx(
+            float(predict_price(fitted, X.iloc[[i]])[0]), rel=1e-9)
+
+
+def test_sample_omits_a_column_the_city_does_not_have(sparse_payload):
+    _, _, p = sparse_payload
+    assert p["sample"]
+    assert "property_type" not in p["sample"][0]
+    assert {"sector", "bedrooms", "area", "price"} <= set(p["sample"][0])
+
+
+def test_private_city_payload_disowns_the_public_narrative(sparse_payload):
+    """The page's findings and methodology prose is hand-written about
+    Gurgaon's numbers. Shipping it around another city's model would be
+    stating figures that are simply false for that city."""
+    _, _, p = sparse_payload
+    assert p["narrative"] is False
+
+
+def test_public_city_payload_keeps_the_narrative(payload):
+    _, p = payload
+    assert p["narrative"] is True
+
+
+# --- area_basis reaches the page -----------------------------------------
+#
+# The dashboard labels its area input. Labelling a super-built-up or an
+# UNKNOWN-basis city's area "Built-up area" would state, in the one place a
+# user actually reads, a basis the data never established -- exactly the
+# silent equivalence the ingestion layer refuses to make. So the basis
+# travels with the payload.
+
+def _basis_payload(basis):
+    df = _sparse_city_frame()
+    df["area_basis"] = basis
+    fitted = train_final(df)
+    city = City("sparsetown", "Sparse Town", Path("/x"), Path("/y"),
+                Path("/z"), public=False)
+    return export_city(fitted, df, city)
+
+
+@pytest.mark.parametrize("basis", ["superbuiltup", "builtup", "carpet", "unknown"])
+def test_payload_carries_the_city_s_declared_area_basis(basis):
+    assert _basis_payload(basis)["area_basis"] == basis
+
+
+def test_unknown_basis_is_carried_verbatim_not_dropped_or_defaulted():
+    """"unknown" must survive as itself. Dropping the key would make the page
+    fall back to the built-up wording -- silently converting "we do not know"
+    into a specific claim."""
+    p = _basis_payload("unknown")
+    assert p["area_basis"] == "unknown"
+    assert p["area_basis"] != "builtup"
+
+
+def test_payload_omits_area_basis_when_the_frame_never_recorded_one(payload):
+    """Gurgaon predates the ingestion config and carries no area_basis
+    column. The key must then be absent rather than guessed, so the public
+    payload is unchanged by this feature."""
+    _, p = payload
+    assert "area_basis" not in p
+
+
+def test_mixed_area_basis_in_one_frame_is_refused():
+    """A frame pooling two bases has no single basis to label, and its
+    price_per_sqft mixes quantities that are not the same measurement."""
+    df = _sparse_city_frame()
+    df["area_basis"] = ["carpet" if i % 2 else "builtup" for i in range(len(df))]
+    fitted = train_final(df)
+    city = City("mixed", "Mixed", Path("/x"), Path("/y"), Path("/z"), public=False)
+    with pytest.raises(ValueError, match="single area_basis"):
+        export_city(fitted, df, city)

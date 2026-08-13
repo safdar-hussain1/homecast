@@ -251,6 +251,9 @@ input[type="range"]::-moz-range-track{height:4px; border-radius:99px; background
 input[type="range"]::-moz-range-thumb{width:14px; height:14px; border:2.5px solid var(--surface); border-radius:50%; background:var(--s1)}
 .scale{display:flex; justify-content:space-between; font-family:"DM Mono",monospace; font-size:10.5px; color:var(--ink-3); margin-top:-4px}
 .area-row{display:grid; grid-template-columns:118px 1fr; gap:12px; align-items:center}
+/* Shown only for a city whose feed never stated its area basis. */
+.area-basis-note{margin:8px 0 0; font-size:12px; line-height:1.5; color:var(--ink-3)}
+.area-basis-note[hidden]{display:none}
 .warn{
   display:none; gap:9px; align-items:flex-start; margin-top:12px; padding:10px 12px; border-radius:9px;
   background:var(--warn-bg); color:var(--warn); font-size:13.5px; line-height:1.45; border:1px solid currentColor;
@@ -450,9 +453,9 @@ footer .mono{font-size:12px; color:var(--ink-3)}
 <header class="topbar">
   <div class="wrap">
     <div class="brand">HomeCast<span class="dot" aria-hidden="true"></span><span>price intelligence</span></div>
-    <div class="cities" aria-label="City">
+    <div class="cities" aria-label="City" data-narrative>
       <span class="lab">City</span>
-      <button class="city" type="button" aria-pressed="true"><i class="pip" aria-hidden="true"></i>Gurgaon<em>live</em></button>
+      <button class="city" type="button" aria-pressed="true"><i class="pip" aria-hidden="true"></i><span class="js-city">Gurgaon</span><em>live</em></button>
       <details class="citypop" id="citypop">
         <summary class="city">Five more on request
           <svg class="caret" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5"/></svg>
@@ -486,9 +489,9 @@ footer .mono{font-size:12px; color:var(--ink-3)}
   <div class="wrap">
     <div class="hero">
       <div class="hero-head">
-        <p class="eyebrow">Gurgaon · the model runs in this page</p>
+        <p class="eyebrow"><span class="js-city">Gurgaon</span> · the model runs in this page</p>
         <h1 class="display">Agents quote <span class="hl">₹/sq.ft.</span><br>HomeCast quotes a price.</h1>
-        <p>Describe a property and it is priced right here: all 500 trees ship with the page, so your inputs
+        <p>Describe a property and it is priced right here: all <span id="heroTrees">500</span> trees ship with the page, so your inputs
            never leave the browser. You get the estimate, the ₹/sq.ft. rule of thumb it is benchmarked against,
            and an honest range around it.</p>
       </div>
@@ -500,15 +503,15 @@ footer .mono{font-size:12px; color:var(--ink-3)}
         </div>
         <dl class="ledger">
           <div class="lrow"><dt>Cleaned listings</dt><i class="lead" aria-hidden="true"></i><dd class="num" id="g-listings">—</dd></div>
-          <div class="lrow"><dt>Sectors with ≥30 listings</dt><i class="lead" aria-hidden="true"></i><dd class="num" id="g-sectors">—</dd></div>
+          <div class="lrow"><dt><span class="js-Locs">Sectors</span> with ≥30 listings</dt><i class="lead" aria-hidden="true"></i><dd class="num" id="g-sectors">—</dd></div>
           <div class="lrow"><dt>Trees running in this page</dt><i class="lead" aria-hidden="true"></i><dd class="num" id="g-trees">—</dd></div>
-          <div class="lrow"><dt>Mean abs. % error · society given / withheld</dt><i class="lead" aria-hidden="true"></i><dd class="num" id="g-mape">—</dd></div>
+          <div class="lrow"><dt>Mean abs. % error<span class="soc-only"> · society given / withheld</span></dt><i class="lead" aria-hidden="true"></i><dd class="num" id="g-mape">—</dd></div>
           <div class="lrow"><dt>Mean error vs the ₹/sq.ft. rule</dt><i class="lead" aria-hidden="true"></i><dd class="num" id="g-mae">—</dd></div>
         </dl>
       </aside>
     </div>
 
-    <p class="caveat">
+    <p class="caveat" data-narrative>
       <strong>Read this before the number below:</strong> these listings are <strong>asking prices</strong>,
       not confirmed sales — sellers, not buyers, set them. And the data is a single undated snapshot first
       collected <strong>2025-08-23</strong>, not a live feed — prices reflect that market, not today's.
@@ -519,11 +522,11 @@ footer .mono{font-size:12px; color:var(--ink-3)}
       <!-- inputs -->
       <form class="panel form" id="form" autocomplete="off">
         <div class="form-grid">
-          <div class="f f-3">
-            <label for="i-sector">Sector</label>
+          <div class="f f-3" data-feature="sector_ppsf">
+            <label for="i-sector" id="lbl-sector"><span class="js-Loc">Sector</span></label>
             <select id="i-sector"></select>
           </div>
-          <div class="f f-3">
+          <div class="f f-3" data-feature="is_house">
             <span class="flabel" id="lbl-type">Property type</span>
             <div class="seg" id="i-type" role="group" aria-labelledby="lbl-type">
               <button type="button" data-v="flat" aria-pressed="true">Flat</button>
@@ -531,49 +534,62 @@ footer .mono{font-size:12px; color:var(--ink-3)}
             </div>
           </div>
 
-          <div class="f f-2">
+          <div class="f f-2" data-feature="bedrooms">
             <label for="i-bhk">Bedrooms</label>
             <select id="i-bhk"></select>
           </div>
-          <div class="f f-2">
+          <div class="f f-2" data-feature="bathrooms">
             <label for="i-bath">Bathrooms</label>
             <select id="i-bath"></select>
           </div>
-          <div class="f f-2">
+          <div class="f f-2" data-feature="age_code">
             <label for="i-age">Age</label>
             <select id="i-age">
               <option value="">Not specified</option>
             </select>
           </div>
 
-          <div class="f f-6">
-            <label for="i-area">Built-up area <span class="val"><span id="v-area">1,800</span> sq.ft.</span></label>
+          <div class="f f-6" data-feature="area">
+            <label for="i-area"><span class="js-Area">Built-up area</span> <span class="val"><span id="v-area">1,800</span> sq.ft.</span></label>
             <div class="area-row">
               <input type="number" id="i-area" value="1800" step="10" inputmode="numeric" aria-describedby="areaWarn">
               <input type="range" id="i-area-r" value="1800" step="10" aria-label="Built-up area slider">
             </div>
             <div class="scale"><span id="area-lo">—</span><span id="area-hi">—</span></div>
+            <p class="area-basis-note" id="areaBasisNote" hidden></p>
           </div>
 
-          <div class="f f-2">
+          <div class="f f-2" data-feature="furnishing_code">
             <label for="i-furn">Furnishing</label>
             <select id="i-furn"></select>
           </div>
-          <div class="f f-4">
+          <div class="f f-4" data-feature="luxury_score">
             <label for="i-lux">Amenity score <span class="val"><span id="v-lux">60</span> <span id="v-luxword">mid</span></span></label>
             <input type="range" id="i-lux" value="60" step="1">
             <div class="scale"><span>0 · bare</span><span id="lux-hi">174 · loaded</span></div>
           </div>
 
-          <div class="f f-4">
+          <div class="f f-4" data-feature="society_ppsf">
             <label for="i-society">Society <span class="flabel">(optional — improves accuracy)</span></label>
             <input type="text" id="i-society" list="societyList" placeholder="Start typing a society name…">
             <datalist id="societyList"></datalist>
           </div>
-          <div class="f f-2">
+          <div class="f f-2" data-feature="balcony_code">
             <label for="i-balcony">Balconies</label>
             <select id="i-balcony">
               <option value="">Not specified</option>
+            </select>
+          </div>
+          <div class="f f-2" data-feature="amenity_count">
+            <label for="i-amen">Amenities counted <span class="val"><span id="v-amen">not stated</span></span></label>
+            <input type="range" id="i-amen" value="-1" step="1" min="-1" max="35">
+          </div>
+          <div class="f f-2" data-feature="is_resale">
+            <label for="i-resale">Resale</label>
+            <select id="i-resale">
+              <option value="">Not specified</option>
+              <option value="1">Resale</option>
+              <option value="0">New / first sale</option>
             </select>
           </div>
         </div>
@@ -585,7 +601,7 @@ footer .mono{font-size:12px; color:var(--ink-3)}
       <div class="slip" id="slip">
         <div class="slip-top">
           <span class="t">Valuation slip</span>
-          <span class="t">Gurgaon · <b>GBR&nbsp;500</b></span>
+          <span class="t"><span class="js-city">Gurgaon</span> · <b>GBR&nbsp;<span id="slipTrees">500</span></b></span>
         </div>
         <p class="slip-spec mono" id="slipSpec">—</p>
         <div class="slip-body">
@@ -632,13 +648,13 @@ footer .mono{font-size:12px; color:var(--ink-3)}
 <!-- ══ 2. comparables ════════════════════════════════════════════════════ -->
 <section id="comparables">
   <div class="wrap">
-    <div class="sec-head"><span class="eyebrow">Evidence</span><h2 class="display">What actually sold near this size</h2></div>
-    <p class="sec-note">The five listings closest in size to your query, drawn from a 400-listing sample of the cleaned
+    <div class="sec-head"><span class="eyebrow">Evidence</span><h2 class="display">What is listed near this size</h2></div>
+    <p class="sec-note">The five listings closest in size to your query, drawn from a <span id="compSampleN">400</span>-listing sample of the cleaned
        dataset that ships with the page. These are real asking prices, not model output — the estimate should sit among them.</p>
     <div class="card wide">
       <div class="scrollx">
         <table id="compTable">
-          <thead><tr><th>Sector</th><th>Type</th><th>BHK</th><th>Area (sq.ft.)</th><th>Price</th><th>₹ / sq.ft.</th><th>Size gap</th></tr></thead>
+          <thead><tr><th><span class="js-Loc">Sector</span></th><th class="col-type">Type</th><th>BHK</th><th>Area (sq.ft.)</th><th>Price</th><th>₹ / sq.ft.</th><th>Size gap</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -650,8 +666,8 @@ footer .mono{font-size:12px; color:var(--ink-3)}
 <!-- ══ 3. market atlas ═══════════════════════════════════════════════════ -->
 <section id="atlas">
   <div class="wrap">
-    <div class="sec-head"><span class="eyebrow">Market atlas</span><h2 class="display">Gurgaon, sector by sector</h2></div>
-    <p class="sec-note">Gurgaon is laid out as a numbered grid, so here is its market in the same shape. Each tile is a sector
+    <div class="sec-head"><span class="eyebrow">Market atlas</span><h2 class="display"><span class="js-city">Gurgaon</span>, <span class="js-loc">sector</span> by <span class="js-loc">sector</span></h2></div>
+    <p class="sec-note" data-narrative>Gurgaon is laid out as a numbered grid, so here is its market in the same shape. Each tile is a sector
        with at least 30 listings, shaded by median ₹/sq.ft. — the single location number the model sees. Your selected sector
        is outlined.</p>
 
@@ -661,7 +677,7 @@ footer .mono{font-size:12px; color:var(--ink-3)}
         <span class="mono" id="rampLo">—</span>
         <span class="ramp" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
         <span class="mono" id="rampHi">—</span>
-        <span style="color:var(--ink-3)">median ₹/sq.ft. · 8 equal-count steps</span>
+        <span style="color:var(--ink-3)">median ₹/sq.ft. · <span id="rampSteps">8</span> equal-count steps</span>
         <span style="margin-left:auto; color:var(--ink-3)" id="atlasCount">—</span>
       </div>
       <details>
@@ -677,8 +693,8 @@ footer .mono{font-size:12px; color:var(--ink-3)}
 
     <div class="cards" style="margin-top:18px">
       <div class="card wide">
-        <h3>Sector price ladder</h3>
-        <p class="sub">median listing price · ₹ crore · every sector with ≥30 listings · your selection is highlighted</p>
+        <h3><span class="js-Loc">Sector</span> price ladder</h3>
+        <p class="sub">median listing price · ₹ crore · every <span class="js-loc">sector</span> with ≥30 listings · your selection is highlighted</p>
         <div class="scrollx"><div class="inner"><div class="chartbox"><canvas id="cLadder" role="img" aria-label="Bar chart of median listing price for each Gurgaon sector with at least thirty listings"></canvas></div></div></div>
       </div>
     </div>
@@ -686,13 +702,13 @@ footer .mono{font-size:12px; color:var(--ink-3)}
 </section>
 
 <!-- ══ 4. findings ═══════════════════════════════════════════════════════ -->
-<section id="findings">
+<section id="findings" data-narrative>
   <div class="wrap">
     <div class="sec-head"><span class="eyebrow">Findings</span><h2 class="display">Four things the data insists on</h2></div>
     <p class="sec-note">Everything here comes out of the same 3,600 cleaned listings the model is trained on.</p>
 
     <div class="cards">
-      <div class="card wide">
+      <div class="card wide" data-narrative>
         <h3>Two markets wearing one city's name</h3>
         <p class="sub">400 sampled listings · price (₹ crore) against built-up area (sq.ft.)</p>
         <div class="chartbox"><canvas id="cScatter" role="img" aria-label="Scatter plot of listing price against built-up area, split by flats and houses"></canvas></div>
@@ -740,15 +756,15 @@ footer .mono{font-size:12px; color:var(--ink-3)}
 <section id="model">
   <div class="wrap">
     <div class="sec-head"><span class="eyebrow">Model card</span><h2 class="display">How good is the number?</h2></div>
-    <p class="sec-note">Every figure below is out-of-fold from 5-fold cross-validation on all 3,600 listings. The sector
+    <p class="sec-note" data-narrative>Every figure below is out-of-fold from 5-fold cross-validation on all 3,600 listings. The sector
        and society encodings are re-learned inside each training fold, so no fold ever sees its own test prices.
        The three tiles below are the <b>society-given</b> number — the model also ships a second, honest number for
        when no society is supplied (the default): see the full table underneath.</p>
 
     <div class="tiles-stat">
-      <div class="stat"><p class="k">Mean absolute error <small>(society given)</small></p><p class="v" id="m-mae">—<small> lakh</small></p><p class="d" id="d-mae">—</p></div>
-      <div class="stat"><p class="k">Mean absolute % error <small>(society given)</small></p><p class="v" id="m-mape">—<small>%</small></p><p class="d" id="d-mape">—</p></div>
-      <div class="stat"><p class="k">R² on price <small>(society given)</small></p><p class="v" id="m-r2">—</p><p class="d" id="d-r2">—</p></div>
+      <div class="stat"><p class="k">Mean absolute error <small class="soc-only">(society given)</small></p><p class="v" id="m-mae">—<small> lakh</small></p><p class="d" id="d-mae">—</p></div>
+      <div class="stat"><p class="k">Mean absolute % error <small class="soc-only">(society given)</small></p><p class="v" id="m-mape">—<small>%</small></p><p class="d" id="d-mape">—</p></div>
+      <div class="stat"><p class="k">R² on price <small class="soc-only">(society given)</small></p><p class="v" id="m-r2">—</p><p class="d" id="d-r2">—</p></div>
     </div>
 
     <div class="cards">
@@ -765,7 +781,7 @@ footer .mono{font-size:12px; color:var(--ink-3)}
 
       <div class="card">
         <h3>Where the errors land</h3>
-        <p class="sub">out-of-fold log error, log(predicted) − log(actual) · 3,600 listings · 20 bins</p>
+        <p class="sub">out-of-fold log error, log(predicted) − log(actual) · <span id="residSub">—</span></p>
         <div class="chartbox"><canvas id="cResid" role="img" aria-label="Histogram of out-of-fold log errors with the tenth and ninetieth percentile band marked"></canvas></div>
       </div>
 
@@ -775,7 +791,7 @@ footer .mono{font-size:12px; color:var(--ink-3)}
         <div class="chartbox"><canvas id="cImp" role="img" aria-label="Horizontal bar chart of feature importances"></canvas></div>
       </div>
 
-      <div class="card wide">
+      <div class="card wide" data-narrative>
         <h3>Where it is weakest</h3>
         <p class="sub">mean signed log error by price quintile · positive means the model asked too much</p>
         <p style="font-size:14.5px; color:var(--ink-2); max-width:78ch">
@@ -793,7 +809,7 @@ footer .mono{font-size:12px; color:var(--ink-3)}
 </section>
 
 <!-- ══ 6. methodology ════════════════════════════════════════════════════ -->
-<section id="method">
+<section id="method" data-narrative>
   <div class="wrap">
     <div class="sec-head"><span class="eyebrow">Methodology</span><h2 class="display">From raw listings to this page</h2></div>
     <p class="sec-note">Six stages, each one a command in the <code class="mono">homecast</code> CLI and each one covered by tests.
@@ -842,7 +858,7 @@ footer .mono{font-size:12px; color:var(--ink-3)}
 
 <footer>
   <div class="wrap">
-    <span>Built by Safdar Hussain · Gurgaon live, other cities available on request</span>
+    <span>Built by Safdar Hussain · <span class="js-city">Gurgaon</span> live, other cities available on request</span>
     <span class="mono" id="footStamp">—</span>
     <a href="https://github.com/safdar-hussain1/homecast">github.com/safdar-hussain1/homecast</a>
   </div>
@@ -874,8 +890,22 @@ const SECTOR_COUNT = DATA.encodings.sector_count;
 const SOCIETY_PPSF = DATA.encodings.society_ppsf;
 const SOCIETIES = Object.keys(SOCIETY_PPSF).filter(k => k !== '__global__').sort();
 const SECTORS = Object.keys(SP).filter(k => k !== '__global__').sort(cmpSector);
-const AREA_MIN = DATA.ranges.area[0], AREA_MAX = DATA.ranges.area[1];
-const LUX_MIN = DATA.ranges.luxury_score[0], LUX_MAX = DATA.ranges.luxury_score[1];
+/* Which features this city's model actually has. Everything below reads
+   HAS(...) rather than assuming the Gurgaon thirteen: a feed with no
+   furnishing/age/society/amenity column ships a shorter feature_order, and
+   the controls and copy for the missing ones are removed rather than left
+   as dead UI that silently feeds a value the model never trained on. */
+const FEATURES = new Set(DATA.feature_order);
+const HAS = f => FEATURES.has(f);
+/* Three-letter stamp for the reference code, from the city's own name. */
+const CITY_CODE = DATA.city.replace(/[^A-Za-z]/g, '').toUpperCase().slice(0, 3) || 'CTY';
+
+const RANGES = DATA.ranges || {};
+const AREA_MIN = RANGES.area[0], AREA_MAX = RANGES.area[1];
+/* ranges only carries the numeric inputs this city HAS, so luxury_score is
+   absent for most cities. Reading it unguarded aborted the whole script. */
+const LUX_MIN = HAS('luxury_score') ? RANGES.luxury_score[0] : 0;
+const LUX_MAX = HAS('luxury_score') ? RANGES.luxury_score[1] : 100;
 
 function cmpSector(a, b){
   const na = /^sector (\d+)/.exec(a), nb = /^sector (\d+)/.exec(b);
@@ -909,9 +939,22 @@ function featureRow(q){
     // fallback (see homecast.model.SOCIETY_MASK_FRACTION) -- do not revert
     // this to a plain global-median fallback.
     society_ppsf:     (q.society && q.society in SOCIETY_PPSF) ? SOCIETY_PPSF[q.society] : sectorPpsf,
-    balcony_code:     (q.balcony && q.balcony in DATA.encodings.balcony) ? DATA.encodings.balcony[q.balcony] : -1
+    balcony_code:     (q.balcony && q.balcony in DATA.encodings.balcony) ? DATA.encodings.balcony[q.balcony] : -1,
+    // Only some feeds carry these. Both use the same "not stated" code as
+    // balcony/age (-1, mirroring MISSING_CODE in features.py) so an
+    // unanswered control is a value the model was actually trained to see.
+    amenity_count:    (q.amenity === null || q.amenity === undefined) ? -1 : q.amenity,
+    is_resale:        (q.resale === null || q.resale === undefined || q.resale === '') ? -1 : +q.resale
   };
-  return DATA.feature_order.map(k => v[k]);
+  return DATA.feature_order.map(k => {
+    const x = v[k];
+    // A feature in feature_order that this page cannot build is NOT
+    // survivable: undefined compares false against every threshold, so the
+    // walker would return a plausible, confidently wrong price instead of
+    // failing. Throw so the page shows nothing rather than a lie.
+    if (x === undefined) throw new Error('featureRow: no value for feature "' + k + '"');
+    return x;
+  });
 }
 
 /* DATA.band is [q10, q90] of residual = log(pred) − log(actual), so
@@ -932,11 +975,13 @@ const SELFTEST = [
   {sector:'sector 65',  type:'house', bedrooms:4, bathrooms:4, area:2500, furnishing:'furnished',      luxury:100, age:null},
   {sector:'sohna road', type:'flat',  bedrooms:2, bathrooms:2, area:950,  furnishing:'unfurnished',    luxury:20,  age:null}
 ];
-if (/[?&]selftest=1\b/.test(location.search)){
+const stLoc = s => (s in SP) ? s : SECTORS[0];
+const SELFTEST_ACTIVE = /[?&]selftest=1\b/.test(location.search);
+if (SELFTEST_ACTIVE){
   try {
     const tags = ['A','B','C'];
     document.title = 'SELFTEST ' + SELFTEST.map((q, i) => {
-      const e = estimateFor(q);
+      const e = estimateFor(Object.assign({}, q, {sector: stLoc(q.sector)}));
       return tags[i] + '=' + e.price.toFixed(2) + '[' + e.lo.toFixed(2) + '-' + e.hi.toFixed(2) + ']';
     }).join(' ');
   } catch (err) { document.title = 'SELFTEST FAILED ' + err; }
@@ -946,10 +991,33 @@ if (/[?&]selftest=1\b/.test(location.search)){
 const IN = n => n.toLocaleString('en-IN');
 const cr = v => '₹' + v.toFixed(2) + ' Cr';
 const ppsfFmt = v => '₹' + IN(Math.round(v));
-const titleCase = s => s.charAt(0).toUpperCase() + s.slice(1);
+const titleCase = s => String(s).replace(/(^|[\s(])([a-z])/g, (m, a, b) => a + b.toUpperCase());
+
+/* "Sector" is Gurgaon's own word for its localities and the authored copy
+   uses it. Any other city gets the neutral noun. */
+const LOC  = DATA.narrative === false ? 'locality'  : 'sector';
+const LOCS = DATA.narrative === false ? 'localities' : 'sectors';
+
+/* Carpet, built-up and super-built-up areas differ by 25-35% for the same
+   flat, so the label above the area box is a factual claim about what the
+   number means. DATA.area_basis is whatever the city's ingestion config
+   declared -- including 'unknown', which several third-party feeds honestly
+   are. An unknown basis gets a neutral noun plus a visible caveat: it must
+   never borrow the built-up wording, because that would state in the page
+   the very thing the data could not establish. A payload with NO area_basis
+   at all (Gurgaon, ingested before the config existed) keeps the original
+   wording untouched. */
+const AREA_BASIS  = DATA.area_basis || null;
+const AREA_LABELS = {
+  superbuiltup: 'Super built-up area', builtup: 'Built-up area',
+  carpet: 'Carpet area', plot: 'Plot area', unknown: 'Area',
+};
+const AREA_LABEL = AREA_BASIS ? (AREA_LABELS[AREA_BASIS] || 'Area') : 'Built-up area';
+const AREA_LABEL_LC = AREA_LABEL.charAt(0).toLowerCase() + AREA_LABEL.slice(1);
+const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
 const shortSector = n => n.startsWith('sector ')
   ? n.slice(7)
-  : titleCase(n.split(' ')[0]).slice(0, 7);
+  : titleCase(String(n).trim().split(/\s+/)[0] || String(n).trim()).slice(0, 7);
 function luxWord(v){
   if (v <= 30) return 'bare';
   if (v <= 70) return 'mid';
@@ -959,11 +1027,64 @@ function luxWord(v){
 
 /* ── controls ─────────────────────────────────────────────────────────── */
 const $ = id => document.getElementById(id);
+
+/* Remove the controls for features this city's model does not have, and the
+   prose written about a different city's numbers. Both are REMOVED from the
+   DOM rather than left hidden, because a control that still reports a value
+   into currentQuery() is worse than no control: it looks answerable and
+   changes nothing. Everything downstream reads el.<x> defensively (see
+   val()), so a removed node is simply never consulted.
+
+   This MUST run before `el` is built below. A node reference captured into
+   `el` first would stay truthy after its element is detached, so every
+   `if (el.x)` guard would pass while the sibling labels it writes to had
+   already gone -- which is exactly the null-textContent crash this ordering
+   prevents. Query the DOM only once it is the shape this city needs. */
+document.querySelectorAll('[data-feature]').forEach(node => {
+  if (!HAS(node.dataset.feature)) node.remove();
+});
+if (DATA.narrative === false){
+  document.querySelectorAll('[data-narrative]').forEach(node => node.remove());
+}
+document.querySelectorAll('.js-city').forEach(node => { node.textContent = DATA.city; });
+document.querySelectorAll('.js-Area').forEach(n => { n.textContent = AREA_LABEL; });
+{
+  const slider = $('i-area-r');
+  if (slider) slider.setAttribute('aria-label', AREA_LABEL + ' slider');
+  /* Say it out loud rather than only omitting the word "built-up": a reader
+     who is not told cannot know the rate is on an unstated basis. */
+  const note = $('areaBasisNote');
+  if (note && AREA_BASIS === 'unknown'){
+    note.hidden = false;
+    note.textContent = 'This source never states whether its areas are carpet, '
+      + 'built-up or super-built-up. Every ₹/sq.ft. on this page is therefore on an '
+      + 'unstated basis: consistent within this city, but not comparable with a city '
+      + 'whose basis is known, and the true rate could be 25–35% higher.';
+  }
+}
+document.querySelectorAll('.js-loc').forEach(n => { n.textContent = LOC; });
+document.querySelectorAll('.js-Loc').forEach(n => { n.textContent = cap(LOC); });
+document.querySelectorAll('.js-Locs').forEach(n => { n.textContent = cap(LOCS); });
+if (!HAS('society_ppsf')) document.querySelectorAll('.soc-only').forEach(node => node.remove());
+if (!HAS('is_house')) document.querySelectorAll('.col-type').forEach(node => node.remove());
+
 const el = {
   sector:$('i-sector'), bhk:$('i-bhk'), bath:$('i-bath'), age:$('i-age'),
   area:$('i-area'), areaR:$('i-area-r'), furn:$('i-furn'), lux:$('i-lux'),
-  society:$('i-society'), balcony:$('i-balcony')
+  society:$('i-society'), balcony:$('i-balcony'),
+  amen:$('i-amen'), resale:$('i-resale')
 };
+/* The ?selftest=1 hook writes its results into document.title, and it runs
+   BEFORE this line. Overwriting it here would silently blank the only
+   channel the CLI-vs-browser parity check reads. */
+if (!SELFTEST_ACTIVE) document.title = 'HomeCast — ' + DATA.city + ' property valuation';
+const metaDesc = document.querySelector('meta[name="description"]');
+if (metaDesc) metaDesc.setAttribute('content',
+  'Describe a ' + DATA.city + ' property and get a price estimate, a confidence '
+  + 'band, and the comparable listings behind it. The model runs in the page.');
+
+/* Read a control that may have been removed above. */
+const val = (node, fallback) => (node && node.value !== '') ? node.value : fallback;
 
 function opt(sel, value, label, selected){
   const o = document.createElement('option');
@@ -971,25 +1092,33 @@ function opt(sel, value, label, selected){
   sel.appendChild(o);
 }
 
-SECTORS.forEach(s => opt(el.sector, s, titleCase(s) + ' · ' + ppsfFmt(SP[s]) + '/sq.ft.', s === 'sector 65'));
-for (let i = 1; i <= 6; i++) opt(el.bhk, i, i + ' BHK', i === 3);
-for (let i = 1; i <= 6; i++) opt(el.bath, i, String(i), i === 3);
-Object.keys(DATA.encodings.age).forEach(a => opt(el.age, a, a, false));
-Object.keys(DATA.encodings.furnishing).forEach(f => opt(el.furn, f, titleCase(f), f === 'semi-furnished'));
-Object.keys(DATA.encodings.balcony).forEach(b => opt(el.balcony, b, b === '0' ? 'None' : b, false));
-SOCIETIES.forEach(s => opt($('societyList'), s, titleCase(s), false));
+/* The default locality is Gurgaon's 'sector 65' where that exists; any other
+   city simply keeps the browser's default (its first option). */
+if (el.sector) SECTORS.forEach(s => opt(el.sector, s, titleCase(s) + ' · ' + ppsfFmt(SP[s]) + '/sq.ft.', s === 'sector 65'));
+if (el.bhk) for (let i = 1; i <= 6; i++) opt(el.bhk, i, i + ' BHK', i === 3);
+if (el.bath) for (let i = 1; i <= 6; i++) opt(el.bath, i, String(i), i === 3);
+if (el.age) Object.keys(DATA.encodings.age).forEach(a => opt(el.age, a, a, false));
+if (el.furn) Object.keys(DATA.encodings.furnishing).forEach(f => opt(el.furn, f, titleCase(f), f === 'semi-furnished'));
+if (el.balcony) Object.keys(DATA.encodings.balcony).forEach(b => opt(el.balcony, b, b === '0' ? 'None' : b, false));
+if (el.society) SOCIETIES.forEach(s => opt($('societyList'), s, titleCase(s), false));
 
 el.area.min = AREA_MIN; el.area.max = AREA_MAX;
 el.areaR.min = AREA_MIN; el.areaR.max = AREA_MAX;
-el.lux.min = LUX_MIN; el.lux.max = LUX_MAX;
 $('area-lo').textContent = IN(AREA_MIN) + ' sq.ft.';
 $('area-hi').textContent = IN(AREA_MAX) + ' sq.ft.';
-$('lux-hi').textContent = LUX_MAX + ' · loaded';
-$('atlasCount').textContent = DATA.sectors.length + ' of ' + SECTORS.length + ' sectors have ≥30 listings';
+if (el.lux){ el.lux.min = LUX_MIN; el.lux.max = LUX_MAX; $('lux-hi').textContent = LUX_MAX + ' · loaded'; }
+$('atlasCount').textContent = DATA.sectors.length + ' of ' + SECTORS.length + ' ' + LOCS + ' have ≥30 listings';
 $('footStamp').textContent = DATA.model.trees.length + ' trees · ' + IN(DATA.generated_n) + ' listings · in-browser inference';
+if ($('heroTrees')) $('heroTrees').textContent = IN(DATA.model.trees.length);
+if ($('slipTrees')) $('slipTrees').textContent = DATA.model.trees.length;
+if ($('compSampleN')) $('compSampleN').textContent = IN(DATA.sample.length);
+if ($('residSub')) $('residSub').textContent =
+  IN(DATA.metrics.n) + ' listings · ' + DATA.residual_hist.counts.length + ' bins';
 
+/* Only a feed that says flat-vs-house gets the toggle; elsewhere every row
+   is simply "a listing" and is_house is not a feature. */
 let propType = 'flat';
-document.getElementById('i-type').addEventListener('click', e => {
+if (el.type = $('i-type')) el.type.addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
   propType = b.dataset.v;
   document.querySelectorAll('#i-type button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
@@ -1001,13 +1130,15 @@ function currentQuery(){
   const asked = Number.isFinite(raw) ? raw : 1800;
   const area = Math.min(AREA_MAX, Math.max(AREA_MIN, asked));
   return {
-    sector: el.sector.value, type: propType,
-    bedrooms: +el.bhk.value, bathrooms: +el.bath.value,
+    sector: val(el.sector, SECTORS[0]), type: propType,
+    bedrooms: +val(el.bhk, 3), bathrooms: +val(el.bath, 3),
     area: area, askedArea: asked,
-    furnishing: el.furn.value, luxury: +el.lux.value,
-    age: el.age.value || null,
-    society: el.society.value.trim() || null,
-    balcony: el.balcony.value || null
+    furnishing: val(el.furn, 'semi-furnished'), luxury: +val(el.lux, LUX_MIN),
+    age: val(el.age, '') || null,
+    society: (el.society ? el.society.value.trim() : '') || null,
+    balcony: val(el.balcony, '') || null,
+    amenity: el.amen ? +el.amen.value : null,
+    resale: val(el.resale, '') || null
   };
 }
 
@@ -1030,8 +1161,8 @@ function render(){
     w.classList.remove('on');
   }
   $('v-area').textContent = IN(q.area);
-  $('v-lux').textContent = q.luxury;
-  $('v-luxword').textContent = luxWord(q.luxury);
+  if (el.lux){ $('v-lux').textContent = q.luxury; $('v-luxword').textContent = luxWord(q.luxury); }
+  if (el.amen) $('v-amen').textContent = q.amenity < 0 ? 'not stated' : q.amenity;
   if (document.activeElement !== el.area) el.area.value = q.area;
   el.areaR.value = q.area;
 
@@ -1042,11 +1173,19 @@ function render(){
   $('figVal').textContent = e.price.toFixed(2);
   $('bandLo').textContent = cr(e.lo);
   $('bandHi').textContent = cr(e.hi);
-  $('slipSpec').textContent = [titleCase(q.sector), q.type, q.bedrooms + ' BHK', q.bathrooms + ' bath',
-                               IN(q.area) + ' sq.ft.', q.furnishing, 'amenity ' + q.luxury,
-                               q.age ? q.age.toLowerCase() : 'age not given',
-                               q.society ? titleCase(q.society) : 'society not given',
-                               q.balcony ? q.balcony + ' balconies' : 'balconies not given'].join(' · ');
+  const spec = [titleCase(q.sector)];
+  if (HAS('is_house')) spec.push(q.type);
+  spec.push(q.bedrooms + ' BHK');
+  if (HAS('bathrooms')) spec.push(q.bathrooms + ' bath');
+  spec.push(IN(q.area) + ' sq.ft.');
+  if (HAS('furnishing_code')) spec.push(q.furnishing);
+  if (HAS('luxury_score')) spec.push('amenity ' + q.luxury);
+  if (HAS('amenity_count')) spec.push(q.amenity < 0 ? 'amenities not given' : q.amenity + ' amenities');
+  if (HAS('is_resale')) spec.push(q.resale === null ? 'resale not given' : (+q.resale ? 'resale' : 'new'));
+  if (HAS('age_code')) spec.push(q.age ? q.age.toLowerCase() : 'age not given');
+  if (HAS('society_ppsf')) spec.push(q.society ? titleCase(q.society) : 'society not given');
+  if (HAS('balcony_code')) spec.push(q.balcony ? q.balcony + ' balconies' : 'balconies not given');
+  $('slipSpec').textContent = spec.join(' · ');
 
   /* Honesty gap: which accuracy regime this exact estimate falls in. The
      model is trained with society masked ~50% of the time so it degrades
@@ -1056,9 +1195,11 @@ function render(){
      falls back to the sector rate otherwise, same as no society at all). */
   const societyKnown = !!(q.society && q.society in SOCIETY_PPSF);
   const Macc = DATA.metrics[societyKnown ? 'model' : 'model_no_society'];
-  $('accuracyNote').innerHTML = (societyKnown
-    ? 'Society matched — this estimate is in the <b class="num">' + Macc.mape_pct.toFixed(1) + '% MAPE</b> accuracy band.'
-    : 'No society matched — this estimate is in the <b class="num">' + Macc.mape_pct.toFixed(1) + '% MAPE</b> accuracy band (name a real society above for the tighter one).');
+  $('accuracyNote').innerHTML = !HAS('society_ppsf')
+    ? 'This estimate is in the <b class="num">' + Macc.mape_pct.toFixed(1) + '% MAPE</b> accuracy band.'
+    : (societyKnown
+      ? 'Society matched — this estimate is in the <b class="num">' + Macc.mape_pct.toFixed(1) + '% MAPE</b> accuracy band.'
+      : 'No society matched — this estimate is in the <b class="num">' + Macc.mape_pct.toFixed(1) + '% MAPE</b> accuracy band (name a real society above for the tighter one).');
 
   /* the ₹/sq.ft. rule of thumb — sector median ₹/sq.ft. × area, the same
      formula as the sector-median baseline the model is scored against */
@@ -1071,10 +1212,14 @@ function render(){
   const diff = e.price - rule;
   $('diffVal').textContent = (diff >= 0 ? '+' : '−') + '₹' + Math.abs(diff).toFixed(2) + ' Cr';
   $('impliedPpsf').textContent = ppsfFmt(e.price * 1e7 / q.area) + '/sq.ft.';
-  $('refCode').textContent = ['HC', 'GGN', shortSector(q.sector).toUpperCase().replace(/\s+/g, ''),
-      (q.type === 'house' ? 'H' : 'F') + q.bedrooms + 'B' + q.bathrooms,
-      Math.round(q.area) + 'SF', q.furnishing.split('-').map(p => p[0].toUpperCase()).join(''),
-      'L' + q.luxury].join('-');
+  const ref = ['HC', CITY_CODE, shortSector(q.sector).toUpperCase().replace(/\s+/g, ''),
+      (HAS('is_house') && q.type === 'house' ? 'H' : 'F') + q.bedrooms
+        + (HAS('bathrooms') ? 'B' + q.bathrooms : ''),
+      Math.round(q.area) + 'SF'];
+  if (HAS('furnishing_code')) ref.push(q.furnishing.split('-').map(s => s[0].toUpperCase()).join(''));
+  if (HAS('luxury_score')) ref.push('L' + q.luxury);
+  if (HAS('amenity_count')) ref.push(q.amenity < 0 ? 'ANA' : 'A' + q.amenity);
+  $('refCode').textContent = ref.join('-');
 
   /* band ruler: model pin is fixed by the band; the rule pin moves */
   const pos = v => 8 + 84 * Math.min(1, Math.max(0, (v - e.lo) / (e.hi - e.lo)));
@@ -1104,7 +1249,7 @@ function renderComparables(q){
     const gap = Math.round(r.area - q.area);
     const tr = document.createElement('tr');
     tr.innerHTML = '<td>' + titleCase(r.sector) + '</td>' +
-      '<td><span class="tag">' + r.property_type + '</span></td>' +
+      (HAS('is_house') ? '<td><span class="tag">' + r.property_type + '</span></td>' : '') +
       '<td>' + r.bedrooms + '</td>' +
       '<td>' + IN(r.area) + '</td>' +
       '<td>' + cr(r.price) + '</td>' +
@@ -1113,8 +1258,8 @@ function renderComparables(q){
     tb.appendChild(tr);
   });
   $('compNote').textContent = fellBack
-    ? 'No sampled listing falls in ' + titleCase(q.sector) + ', so these are the closest matches from anywhere in the city. The sample holds 400 of the 3,600 cleaned listings, so thinly-traded sectors drop out.'
-    : 'Closest five by built-up area inside ' + titleCase(q.sector) + ', from ' + pool.length +
+    ? 'No sampled listing falls in ' + titleCase(q.sector) + ', so these are the closest matches from anywhere in the city. The sample holds ' + IN(DATA.sample.length) + ' of the ' + IN(M.n) + ' cleaned listings, so thinly-traded ' + LOCS + ' drop out.'
+    : 'Closest five by ' + AREA_LABEL_LC + ' inside ' + titleCase(q.sector) + ', from ' + pool.length +
       ' sampled listing' + (pool.length === 1 ? '' : 's') + ' there.';
 }
 
@@ -1129,11 +1274,21 @@ function showTip(html, x, y){
 const hideTip = () => { tip.style.opacity = '0'; };
 
 const ppsfVals = DATA.sectors.map(s => s.median_ppsf).slice().sort((a, b) => a - b);
-const stepEdges = [1,2,3,4,5,6,7].map(i => ppsfVals[Math.floor(i * ppsfVals.length / 8)]);
-const stepOf = v => { let s = 0; while (s < 7 && v >= stepEdges[s]) s++; return s; };
+/* Eight equal-count steps need at least eight localities to cut between. A
+   smaller city gets as many steps as it has distinct edges, and the legend
+   is told the real number rather than claiming eight. */
+const RAMP_STEPS = Math.max(1, Math.min(8, ppsfVals.length));
+const stepEdges = Array.from({length: RAMP_STEPS - 1},
+  (_, i) => ppsfVals[Math.floor((i + 1) * ppsfVals.length / RAMP_STEPS)]);
+const stepOf = v => { let s = 0; while (s < stepEdges.length && v >= stepEdges[s]) s++; return s; };
+if ($('rampSteps')) $('rampSteps').textContent = RAMP_STEPS;
 
-$('rampLo').textContent = ppsfFmt(ppsfVals[0]);
-$('rampHi').textContent = ppsfFmt(ppsfVals[ppsfVals.length - 1]);
+if (ppsfVals.length){
+  $('rampLo').textContent = ppsfFmt(ppsfVals[0]);
+  $('rampHi').textContent = ppsfFmt(ppsfVals[ppsfVals.length - 1]);
+} else {
+  $('rampLo').textContent = $('rampHi').textContent = 'n/a';
+}
 
 const tilesWrap = $('tiles');
 DATA.sectors.slice().sort((a, b) => cmpSector(a.name, b.name)).forEach(s => {
@@ -1176,8 +1331,11 @@ const M = DATA.metrics;
 $('g-listings').textContent = IN(M.n);
 $('g-sectors').textContent = DATA.sectors.length;
 $('g-trees').textContent = IN(DATA.model.trees.length);
-$('g-mape').innerHTML = M.model.mape_pct.toFixed(1) + '% <span class="vs">/ ' +
-                        M.model_no_society.mape_pct.toFixed(1) + '%</span>';
+/* The second number is the same model with the society withheld. Without a
+   society feature the two are identical by construction, so printing
+   "59.4% / 59.4%" would imply a trade-off that does not exist here. */
+$('g-mape').innerHTML = M.model.mape_pct.toFixed(1) + '%' + (HAS('society_ppsf')
+  ? ' <span class="vs">/ ' + M.model_no_society.mape_pct.toFixed(1) + '%</span>' : '');
 $('g-mae').innerHTML = '₹' + M.model.mae_lakh.toFixed(1) + ' <span class="vs">vs ₹' +
                        M.baseline_sector.mae_lakh.toFixed(1) + ' lakh</span>';
 document.querySelector('.glance-head .g-note').textContent =
@@ -1185,9 +1343,20 @@ document.querySelector('.glance-head .g-note').textContent =
 $('m-mae').innerHTML = M.model.mae_lakh.toFixed(1) + '<small> lakh</small>';
 $('m-mape').innerHTML = M.model.mape_pct.toFixed(1) + '<small>%</small>';
 $('m-r2').textContent = M.model.r2.toFixed(3);
-$('d-mae').innerHTML = '−' + (M.baseline_sector.mae_lakh - M.model.mae_lakh).toFixed(1) + ' lakh <span>vs the ₹/sq.ft. rule</span>';
-$('d-mape').innerHTML = '−' + (M.baseline_sector.mape_pct - M.model.mape_pct).toFixed(1) + ' points <span>vs the ₹/sq.ft. rule</span>';
-$('d-r2').innerHTML = '+' + (M.model.r2 - M.baseline_sector.r2).toFixed(3) + ' <span>vs the ₹/sq.ft. rule</span>';
+/* Signed honestly in BOTH directions. A model that is worse than the
+   locality-median rule has to say so on the page; the previous hardcoded
+   '−'/'+' would have rendered a loss as "−-4.6 points" and read as a win. */
+function delta(gain, unit, digits){
+  const better = gain > 0;
+  const el = document.createElement('span');
+  return (better ? '−' : '+') + Math.abs(gain).toFixed(digits) + unit +
+         ' <span>' + (better ? 'vs' : 'WORSE than') + ' the ₹/sq.ft. rule</span>';
+}
+$('d-mae').innerHTML = delta(M.baseline_sector.mae_lakh - M.model.mae_lakh, ' lakh', 1);
+$('d-mape').innerHTML = delta(M.baseline_sector.mape_pct - M.model.mape_pct, ' points', 1);
+$('d-r2').innerHTML = (M.model.r2 >= M.baseline_sector.r2 ? '+' : '−') +
+  Math.abs(M.model.r2 - M.baseline_sector.r2).toFixed(3) +
+  ' <span>' + (M.model.r2 >= M.baseline_sector.r2 ? 'vs' : 'WORSE than') + ' the ₹/sq.ft. rule</span>';
 
 const mtb = document.querySelector('#metricsTable tbody');
 [['HomeCast model — society given', 'gradient-boosted trees on log price, society matched', M.model, true],
@@ -1210,12 +1379,12 @@ const C = n => css().getPropertyValue(n).trim();
    own feature_importances_, keyed by feature name — so this page can never
    carry a stale copy. Show the four the model leans on, roll up the rest. */
 const IMP_LABELS = {
-  area: 'Built-up area', sector_ppsf: 'Sector ₹/sq.ft. (median)', bathrooms: 'Bathrooms',
+  area: AREA_LABEL, sector_ppsf: 'Sector ₹/sq.ft. (median)', bathrooms: 'Bathrooms',
   is_house: 'House (not flat)', bedrooms: 'Bedrooms', furnishing_code: 'Furnishing',
   luxury_score: 'Amenity score', age_code: 'Age / possession',
   sector_ppsf_mean: 'Sector ₹/sq.ft. (mean)', sector_ppsf_std: 'Sector ₹/sq.ft. spread',
   sector_count: 'Sector listing count', society_ppsf: 'Society ₹/sq.ft. (smoothed)',
-  balcony_code: 'Balconies'
+  balcony_code: 'Balconies', amenity_count: 'Amenities counted', is_resale: 'Resale (not new)'
 };
 const NUMWORD = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight'];
 const IMPORTANCES = (() => {
@@ -1258,6 +1427,10 @@ function bandLines(){
   };
 }
 
+/* Build a chart only if its canvas survived the narrative/feature pruning,
+   so one absent block cannot abort the charts that follow it. */
+function chartOn(id, spec){ const c = $(id); return c ? new Chart(c, spec) : null; }
+
 function buildCharts(){
   if (typeof Chart === 'undefined') return;
   Chart.defaults.font.family = '"Public Sans", system-ui, sans-serif';
@@ -1282,7 +1455,7 @@ function buildCharts(){
 
   /* 1 — sector price ladder */
   const lad = DATA.sectors.slice().sort((a, b) => b.median_price_cr - a.median_price_cr);
-  ladderChart = new Chart($('cLadder'), {
+  ladderChart = chartOn('cLadder', {
     type: 'bar',
     data: {labels: lad.map(s => shortSector(s.name)),
            datasets: [{data: lad.map(s => s.median_price_cr), backgroundColor: C('--s1-fade'),
@@ -1297,19 +1470,24 @@ function buildCharts(){
                y: {grid: grid, border: {display: false}, ticks: {callback: v => '₹' + v + ' Cr'}}}
     }
   });
-  ladderChart._rows = lad;
-  updateLadder(el.sector.value);
+  if (ladderChart){
+    ladderChart._rows = lad;
+    updateLadder(val(el.sector, SECTORS[0]));
+  }
 
   /* 2 — price against area */
-  const flats = DATA.sample.filter(r => r.property_type === 'flat').map(r => ({x: r.area, y: r.price, s: r.sector, b: r.bedrooms}));
-  const houses = DATA.sample.filter(r => r.property_type === 'house').map(r => ({x: r.area, y: r.price, s: r.sector, b: r.bedrooms}));
+  const pt = r => ({x: r.area, y: r.price, s: r.sector, b: r.bedrooms});
+  /* A feed that doesn't distinguish flats from houses gets one series of
+     "listings" rather than two empty ones. */
+  const flats = (HAS('is_house') ? DATA.sample.filter(r => r.property_type === 'flat') : DATA.sample).map(pt);
+  const houses = (HAS('is_house') ? DATA.sample.filter(r => r.property_type === 'house') : []).map(pt);
   const ring = C('--surface');
-  scatterChart = new Chart($('cScatter'), {
+  scatterChart = chartOn('cScatter', {
     type: 'scatter',
     data: {datasets: [
-      {label: 'Flat (' + flats.length + ')', data: flats, backgroundColor: C('--s1'),
+      {label: (HAS('is_house') ? 'Flat (' : 'Listings (') + flats.length + ')', data: flats, backgroundColor: C('--s1'),
        pointRadius: 3.4, pointHoverRadius: 6, borderColor: ring, borderWidth: 1.5, hitRadius: 8},
-      {label: 'House (' + houses.length + ')', data: houses, backgroundColor: C('--s2'),
+      {label: 'House (' + houses.length + ')', data: houses, hidden: !HAS('is_house'), backgroundColor: C('--s2'),
        pointRadius: 3.4, pointHoverRadius: 6, borderColor: ring, borderWidth: 1.5, hitRadius: 8}]},
     options: {
       plugins: {
@@ -1325,7 +1503,7 @@ function buildCharts(){
   /* 3 — residual histogram */
   const edges = DATA.residual_hist.edges;
   const centres = edges.slice(0, -1).map((e0, i) => (e0 + edges[i + 1]) / 2);
-  residChart = new Chart($('cResid'), {
+  residChart = chartOn('cResid', {
     type: 'bar',
     data: {labels: centres.map(c => c.toFixed(2)),
            datasets: [{data: DATA.residual_hist.counts, backgroundColor: C('--s1'),
@@ -1343,7 +1521,7 @@ function buildCharts(){
   });
 
   /* 4 — feature importances */
-  impChart = new Chart($('cImp'), {
+  impChart = chartOn('cImp', {
     type: 'bar',
     data: {labels: IMPORTANCES.map(r => r[0]),
            datasets: [{data: IMPORTANCES.map(r => r[1]), backgroundColor: C('--s1'),
@@ -1354,7 +1532,9 @@ function buildCharts(){
       plugins: {legend: {display: false},
                 tooltip: {callbacks: {label: i => (i.parsed.x * 100).toFixed(1) + '% of total importance'}}},
       scales: {y: {grid: noGrid, border: {display: false}, ticks: {color: C('--ink-2'), font: {size: 12}}},
-               x: {grid: grid, border: {display: false}, max: .6, ticks: {callback: v => Math.round(v * 100) + '%'}}}
+               x: {grid: grid, border: {display: false},
+                   max: Math.min(1, Math.max(.6, Math.ceil(Math.max(...IMPORTANCES.map(r => r[1])) * 10) / 10 + .05)),
+                   ticks: {callback: v => Math.round(v * 100) + '%'}}}
     },
     plugins: [{
       id: 'impLabels',
@@ -1401,22 +1581,27 @@ syncThemeLabel();
 
 /* ── city popover ─────────────────────────────────────────────────────── */
 const cityPop = $('citypop');
-document.addEventListener('click', ev => {
-  if (cityPop.open && !cityPop.contains(ev.target)) cityPop.open = false;
-});
-document.addEventListener('keydown', ev => {
-  if (ev.key === 'Escape' && cityPop.open){
-    cityPop.open = false;
-    cityPop.querySelector('summary').focus();
-  }
-});
+if (cityPop){
+  document.addEventListener('click', ev => {
+    if (cityPop.open && !cityPop.contains(ev.target)) cityPop.open = false;
+  });
+  document.addEventListener('keydown', ev => {
+    if (ev.key === 'Escape' && cityPop.open){
+      cityPop.open = false;
+      cityPop.querySelector('summary').focus();
+    }
+  });
+}
 
 /* ── wire up ──────────────────────────────────────────────────────────── */
-[el.sector, el.bhk, el.bath, el.age, el.furn, el.balcony].forEach(c => c.addEventListener('change', render));
-el.society.addEventListener('input', render);
+const on = (node, ev, fn) => { if (node) node.addEventListener(ev, fn); };
+[el.sector, el.bhk, el.bath, el.age, el.furn, el.balcony, el.resale]
+  .forEach(c => on(c, 'change', render));
+on(el.society, 'input', render);
+on(el.amen, 'input', render);
 el.area.addEventListener('input', render);
 el.areaR.addEventListener('input', () => { el.area.value = el.areaR.value; render(); });
-el.lux.addEventListener('input', render);
+on(el.lux, 'input', render);
 el.area.addEventListener('blur', render);
 window.addEventListener('scroll', hideTip, {passive: true});
 

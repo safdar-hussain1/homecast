@@ -6,6 +6,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
+from homecast.export import SAMPLE_COLUMNS
 from homecast.features import AGE_CODES, BALCONY_CODES, FURNISHING_CODES, build_features
 from homecast.model import FittedModel, predict_price
 
@@ -31,15 +32,28 @@ class Query:
     # an omitted society degrades gracefully instead of badly mispricing.
     society: str | None = None
     balcony: str | None = None
+    # Only meaningful for a city whose feed carries them (see
+    # homecast.features): a bank of amenity flags, and a resale marker.
+    # Left as None for Gurgaon, whose model has neither feature.
+    amenity_count: float | None = None
+    is_resale: float | None = None
 
 
 def query_to_row(q: Query) -> pd.DataFrame:
+    """One query as a single-row frame carrying EVERY catalogue source column.
+
+    Deliberately complete even where the caller supplied nothing: the row is
+    only ever consumed with an explicit column list from the fitted model, so
+    the extra placeholders are never selected, and a model that does want one
+    of them always finds the column rather than raising.
+    """
     return pd.DataFrame([{
         "sector": q.sector, "property_type": q.property_type,
         "bedrooms": q.bedrooms, "bathrooms": q.bathrooms, "area": q.area,
         "furnishing_type": q.furnishing, "luxury_score": q.luxury_score,
         "age_possession": q.age, "price_per_sqft": np.nan,
         "society": q.society, "balcony": q.balcony,
+        "amenity_count": q.amenity_count, "is_resale": q.is_resale,
     }])
 
 
@@ -57,9 +71,13 @@ def _check_range(fitted: FittedModel, field: str, value: float, unit: str = "") 
 
 
 def estimate(fitted: FittedModel, q: Query) -> dict:
-    if q.property_type not in ("flat", "house"):
+    # Each input is validated only if this city's model actually uses it: a
+    # feed with no furnishing column has no furnishing_code feature, and
+    # rejecting a query over a field the model ignores would be noise.
+    used = set(fitted.columns)
+    if "is_house" in used and q.property_type not in ("flat", "house"):
         raise ValueError(f"property_type must be 'flat' or 'house', got '{q.property_type}'")
-    if q.furnishing not in FURNISHING_CODES:
+    if "furnishing_code" in used and q.furnishing not in FURNISHING_CODES:
         raise ValueError(f"Unknown furnishing '{q.furnishing}'")
     # `build_features` silently falls back to the global median for an unseen
     # sector — correct inside the CV loop, wrong for a human typing a name. A
@@ -70,10 +88,10 @@ def estimate(fitted: FittedModel, q: Query) -> dict:
         raise ValueError(f"Unknown sector '{q.sector}' — not one of the "
                          f"{len(known_sectors)} sectors in the trained set "
                          f"(names are lower-case, e.g. 'sector 65'; check the case)")
-    if q.age is not None and q.age not in AGE_CODES:
+    if "age_code" in used and q.age is not None and q.age not in AGE_CODES:
         raise ValueError(f"Unknown age '{q.age}'. Valid: "
                          f"{', '.join(AGE_CODES)}")
-    if q.balcony is not None and q.balcony not in BALCONY_CODES:
+    if "balcony_code" in used and q.balcony is not None and q.balcony not in BALCONY_CODES:
         raise ValueError(f"Unknown balcony '{q.balcony}'. Valid: "
                          f"{', '.join(BALCONY_CODES)}")
     # Unlike sector, society is not rejected when unrecognised: it is an
@@ -81,11 +99,15 @@ def estimate(fitted: FittedModel, q: Query) -> dict:
     # falls back to this query's own sector rate (note "independent" --
     # ~13% of listings, no named society -- is itself a real, well-populated
     # category with its own learned encoding, not a fallback).
-    _check_range(fitted, "area", q.area, "sq.ft.")
-    _check_range(fitted, "bedrooms", q.bedrooms)
-    _check_range(fitted, "bathrooms", q.bathrooms)
-    _check_range(fitted, "luxury_score", q.luxury_score)
-    X = build_features(query_to_row(q), fitted.encoders)
+    # fitted.ranges only holds the numeric inputs this city actually has, so
+    # a market with no amenity score is not asked to range-check one.
+    for field, value, unit in (("area", q.area, "sq.ft."),
+                               ("bedrooms", q.bedrooms, ""),
+                               ("bathrooms", q.bathrooms, ""),
+                               ("luxury_score", q.luxury_score, "")):
+        if field in fitted.ranges:
+            _check_range(fitted, field, value, unit)
+    X = build_features(query_to_row(q), fitted.encoders, list(fitted.columns))
     price = float(predict_price(fitted, X)[0])
     # The band holds the 10th/90th percentile of residual = log(pred) - log(actual),
     # so actual = pred * exp(-residual). The SIGN IS NEGATED on purpose: the q90
@@ -102,4 +124,5 @@ def comparables(df: pd.DataFrame, q: Query, k: int = 5) -> pd.DataFrame:
     if pool.empty:
         pool = df
     ranked = pool.iloc[(pool["area"] - q.area).abs().argsort()]
-    return ranked.head(k)[["sector", "property_type", "bedrooms", "area", "price"]]
+    cols = [c for c in SAMPLE_COLUMNS if c in df.columns]
+    return ranked.head(k)[cols]

@@ -21,7 +21,8 @@ from sklearn.base import BaseEstimator, clone
 from sklearn.ensemble import ExtraTreesRegressor, GradientBoostingRegressor
 from sklearn.model_selection import KFold
 
-from homecast.features import Encoders, build_features, fit_encoders, target
+from homecast.features import (Encoders, FEATURE_COLUMNS, build_features,
+                               feature_columns_for, fit_encoders, target)
 
 DEFAULT_PARAMS = {"n_estimators": 500, "max_depth": 5, "learning_rate": 0.05,
                   "subsample": 0.9, "random_state": 7}
@@ -88,7 +89,15 @@ def _mask_society(X: pd.DataFrame, rng: np.random.Generator) -> pd.DataFrame:
     """Overwrite society_ppsf with the row's own sector_ppsf for a random
     ~SOCIETY_MASK_FRACTION of rows, so training sees the same "I don't know
     the society" situation a real caller is often in. Only ever applied to
-    TRAINING features -- see the module docstring on SOCIETY_MASK_FRACTION."""
+    TRAINING features -- see the module docstring on SOCIETY_MASK_FRACTION.
+
+    A city whose feed has no building names has no society_ppsf feature at
+    all (see homecast.features), so there is nothing to mask and nothing to
+    be over-reliant on: this is a no-op there. The RNG is deliberately still
+    NOT drawn from in that case -- consuming a draw the masking never uses
+    would make one city's stream depend on another's schema."""
+    if "society_ppsf" not in X.columns:
+        return X
     X = X.copy()
     masked = rng.random(len(X)) < SOCIETY_MASK_FRACTION
     X.loc[masked, "society_ppsf"] = X.loc[masked, "sector_ppsf"]
@@ -98,7 +107,13 @@ def _mask_society(X: pd.DataFrame, rng: np.random.Generator) -> pd.DataFrame:
 def _without_society(X: pd.DataFrame) -> pd.DataFrame:
     """Simulate a caller who can't supply a society at predict time: replace
     every row's society_ppsf with its own sector_ppsf (the same fallback
-    build_features already applies for an unrecognised/omitted society)."""
+    build_features already applies for an unrecognised/omitted society).
+
+    For a city with no society feature this is a no-op, so the reported
+    "without a society given" metric is identical to the headline one --
+    correctly so: there is no society to withhold."""
+    if "society_ppsf" not in X.columns:
+        return X
     X = X.copy()
     X["society_ppsf"] = X["sector_ppsf"]
     return X
@@ -115,19 +130,27 @@ def _baseline_pred(train: pd.DataFrame, test: pd.DataFrame, by_sector: bool) -> 
     return ppsf * test["area"].to_numpy() / 1e7
 
 
-def evaluate(df: pd.DataFrame, model: str = "default", n_splits: int = 5) -> dict:
+def evaluate(df: pd.DataFrame, model: str = "default", n_splits: int = 5,
+             columns: list[str] | None = None) -> dict:
     df = df.reset_index(drop=True)
     _validate_prices(df)
+    # Resolved ONCE, from the whole frame, then reused for every fold: a
+    # fold-local re-inference could pick a different feature set per fold.
+    # This is schema-only (which columns exist), never target-derived, so
+    # deriving it from all rows leaks nothing -- the encodings that DO see
+    # the target are still re-fit inside each training fold below.
+    if columns is None:
+        columns = feature_columns_for(df)
     oof = {k: np.zeros(len(df)) for k in
            ("model", "model_no_society", "baseline_sector", "baseline_global")}
     mask_rng = np.random.default_rng(_SOCIETY_MASK_SEED)
     for tr_idx, te_idx in KFold(n_splits, shuffle=True, random_state=7).split(df):
         tr, te = df.iloc[tr_idx], df.iloc[te_idx]
         enc = fit_encoders(tr)                           # fold-local: no leakage
-        Xtr = _mask_society(build_features(tr, enc), mask_rng)
+        Xtr = _mask_society(build_features(tr, enc, columns), mask_rng)
         est = _make_estimator(model)
         est.fit(Xtr, target(tr))
-        Xte = build_features(te, enc)
+        Xte = build_features(te, enc, columns)
         oof["model"][te_idx] = np.exp(est.predict(Xte))
         # same out-of-fold rows, same trained (masking-robust) estimator, but
         # society withheld at predict time -- the number a real user who
@@ -142,7 +165,14 @@ def evaluate(df: pd.DataFrame, model: str = "default", n_splits: int = 5) -> dic
     out["model_name"] = model
     out["params"] = MODELS[model].get_params()
     out["n_splits"] = n_splits
+    out["columns"] = list(columns)
     return out
+
+
+# Numeric inputs a caller types in, so a query outside the training range can
+# be refused (see valuation._check_range). Only those the city actually has
+# end up in FittedModel.ranges.
+RANGE_COLUMNS = ("area", "bedrooms", "bathrooms", "luxury_score")
 
 
 @dataclass(frozen=True)
@@ -152,19 +182,27 @@ class FittedModel:
     band: tuple
     ranges: dict
     metrics: dict = field(repr=False)
+    # The exact feature list this estimator was fit on, in order. Carried on
+    # the fitted model rather than re-inferred at predict time so a query
+    # frame can never produce a different set (see features.build_features).
+    # Defaults to the Gurgaon 13 so a model pickled before this field existed
+    # still loads.
+    columns: tuple[str, ...] = tuple(FEATURE_COLUMNS)
 
 
 def train_final(df: pd.DataFrame, model: str = "default") -> FittedModel:
-    metrics = evaluate(df, model=model)
+    columns = feature_columns_for(df)
+    metrics = evaluate(df, model=model, columns=columns)
     enc = fit_encoders(df)
     est = _make_estimator(model)
-    Xfull = _mask_society(build_features(df, enc), np.random.default_rng(_SOCIETY_MASK_SEED))
+    Xfull = _mask_society(build_features(df, enc, columns),
+                          np.random.default_rng(_SOCIETY_MASK_SEED))
     est.fit(Xfull, target(df))
     res = np.asarray(metrics["residuals_log"])
     band = (float(np.quantile(res, 0.10)), float(np.quantile(res, 0.90)))
     ranges = {c: [float(df[c].min()), float(df[c].max())]
-              for c in ("area", "bedrooms", "bathrooms", "luxury_score")}
-    return FittedModel(est, enc, band, ranges, metrics)
+              for c in RANGE_COLUMNS if c in df.columns}
+    return FittedModel(est, enc, band, ranges, metrics, tuple(columns))
 
 
 def predict_price(fitted: FittedModel, X: pd.DataFrame) -> np.ndarray:

@@ -4,8 +4,10 @@ import pytest
 from sklearn.ensemble import ExtraTreesRegressor, GradientBoostingRegressor
 from sklearn.model_selection import KFold
 
-from homecast.features import build_features, fit_encoders, target
+from homecast.features import (FEATURE_COLUMNS, build_features,
+                               feature_columns_for, fit_encoders, target)
 from homecast.model import (DEFAULT_PARAMS, MODELS, SOCIETY_MASK_FRACTION,
+                            _SOCIETY_MASK_SEED, _mask_society,
                             _without_society, evaluate, predict_price,
                             train_final)
 
@@ -369,3 +371,132 @@ def test_evaluate_runs_the_requested_number_of_folds(clean_fixture, monkeypatch,
     n = len(clean_fixture)
     expected = n - n / k
     assert all(abs(rows - expected) <= 1 for rows in seen), seen
+
+
+# --- Heterogeneous cities: fold-safety must hold for all of them -----------
+#
+# The per-city feature set is new machinery between the data and the fold
+# loop, and it is exactly the kind of place a leak gets reintroduced: resolve
+# the columns per fold, or let a city with no society skip the masking that
+# keeps the encodings honest, and the reported metrics quietly become
+# optimistic. These tests deny a sparse city any path around the guarantees
+# the Gurgaon path already has.
+
+def _sparse_leak_prone_frame(n: int = 240) -> pd.DataFrame:
+    """A sparse-schema city (no society, no furnishing, no age, no balcony)
+    whose locality is nearly unique per listing -- so a locality encoding fit
+    on the whole frame memorises the target and an honest one cannot."""
+    rng = np.random.default_rng(11)
+    # One listing per locality. A locality encoding fit on the whole frame
+    # therefore recovers each held-out row's own rate exactly, and
+    # price = rate x area follows; an encoding fit on a training fold has
+    # never seen the held-out locality at all and can only fall back to the
+    # city median. (A locality shared with a pair-mate would let the honest
+    # loop learn the rate legitimately, which is not what this contrasts.)
+    locality = [f"locality {i}" for i in range(n)]
+    rate = dict(zip(locality, rng.uniform(3000, 40000, n).round()))
+    ppsf = np.array([rate[s] for s in locality])
+    # Area barely varies, so essentially all of the price signal lives in the
+    # locality rate -- the one thing an honest fold loop cannot know for a
+    # held-out locality, and the one thing the leaky variant hands it.
+    area = rng.uniform(950, 1050, n).round()
+    return pd.DataFrame({
+        "sector": locality,
+        "price": area * ppsf / 1e7,
+        "price_per_sqft": ppsf,
+        "area": area,
+        "bedrooms": rng.integers(1, 5, n),
+        "amenity_count": rng.integers(0, 20, n).astype(float),
+        "is_resale": rng.integers(0, 2, n).astype(float),
+    })
+
+
+def _leaky_oof_r2_for(df: pd.DataFrame, columns, n_splits: int = 5) -> float:
+    """The leaky variant, for an arbitrary feature list. See _leaky_oof_r2."""
+    df = df.reset_index(drop=True)
+    enc_full = fit_encoders(df)                      # <- the leak
+    oof = np.zeros(len(df))
+    for tr_idx, te_idx in KFold(n_splits, shuffle=True, random_state=7).split(df):
+        tr, te = df.iloc[tr_idx], df.iloc[te_idx]
+        est = GradientBoostingRegressor(**DEFAULT_PARAMS)
+        est.fit(build_features(tr, enc_full, columns), target(tr))
+        oof[te_idx] = np.exp(est.predict(build_features(te, enc_full, columns)))
+    actual = df["price"].to_numpy(dtype=float)
+    err = oof - actual
+    return float(1 - np.sum(err ** 2) / np.sum((actual - actual.mean()) ** 2))
+
+
+def test_sparse_city_evaluate_does_not_leak_the_target():
+    """The Gurgaon leakage guarantee, re-proved for a city whose feature set
+    was degraded. A sparse schema must not be a way around the fold loop."""
+    df = _sparse_leak_prone_frame()
+    cols = feature_columns_for(df)
+    honest = evaluate(df)["model"]["r2"]
+    leaky = _leaky_oof_r2_for(df, cols)
+    assert leaky > 0.90, f"leaky reference should be near-perfect, got {leaky:.3f}"
+    assert honest < leaky - 0.30, (
+        f"evaluate() scored R2={honest:.3f} against a leaky R2={leaky:.3f} on a "
+        f"sparse-schema city — the fold loop looks like it is encoding on the "
+        f"full frame")
+
+
+def test_sparse_city_fold_loop_encodes_on_training_rows_only(monkeypatch):
+    df = _sparse_leak_prone_frame()
+    seen = _spy_on_fit_encoders(monkeypatch)
+    evaluate(df, n_splits=5)
+    assert seen, "fit_encoders was never called — the spy is not wired up"
+    assert len(df) not in seen, (
+        f"fit_encoders was handed all {len(df)} rows: the fold loop is leaking")
+
+
+def test_feature_set_is_resolved_once_not_per_fold(monkeypatch):
+    """Re-inferring inside the loop would let two folds train on different
+    feature sets and still be averaged into one headline number."""
+    import homecast.model as model_mod
+    calls = []
+    real = model_mod.feature_columns_for
+    monkeypatch.setattr(model_mod, "feature_columns_for",
+                        lambda f: (calls.append(len(f)), real(f))[1])
+    df = _sparse_leak_prone_frame()
+    evaluate(df, n_splits=5)
+    assert calls == [len(df)], (
+        f"feature_columns_for was called {len(calls)} time(s) with row counts "
+        f"{calls}; it must be resolved exactly once, from the whole frame")
+
+
+def test_fitted_model_carries_its_own_feature_list():
+    df = _sparse_leak_prone_frame()
+    fitted = train_final(df)
+    assert list(fitted.columns) == feature_columns_for(df)
+    assert "society_ppsf" not in fitted.columns
+    assert fitted.model.n_features_in_ == len(fitted.columns)
+
+
+def test_society_masking_is_a_noop_without_a_society_feature():
+    """A city with no building names has nothing to mask. The masking must
+    not consume RNG draws there either, or one city's random stream would
+    depend on another city's schema."""
+    df = _sparse_leak_prone_frame()
+    X = build_features(df, fit_encoders(df))
+    rng = np.random.default_rng(_SOCIETY_MASK_SEED)
+    assert _mask_society(X, rng).equals(X)
+    assert rng.random() == np.random.default_rng(_SOCIETY_MASK_SEED).random()
+
+
+def test_no_society_city_reports_identical_with_and_without_numbers():
+    """There is no society to withhold, so the two must agree exactly —
+    a differing pair would mean the 'withheld' path is doing something else."""
+    m = evaluate(_sparse_leak_prone_frame())
+    assert m["model"] == m["model_no_society"]
+
+
+def test_sparse_city_ranges_only_cover_columns_it_has():
+    fitted = train_final(_sparse_leak_prone_frame())
+    assert set(fitted.ranges) == {"area", "bedrooms"}
+
+
+def test_public_frame_still_carries_the_full_feature_set(clean_fixture):
+    """Guards the public path: the degradation machinery must not shorten
+    Gurgaon's own feature vector."""
+    fitted = train_final(clean_fixture)
+    assert list(fitted.columns) == FEATURE_COLUMNS

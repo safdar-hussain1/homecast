@@ -2,8 +2,10 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from homecast.features import (FEATURE_COLUMNS, SOCIETY_SMOOTHING_M,
-                               build_features, fit_encoders, target)
+from homecast.features import (ALL_FEATURE_COLUMNS, FEATURE_COLUMNS,
+                               MISSING_CODE, SOCIETY_SMOOTHING_M,
+                               build_features, feature_columns_for,
+                               fit_encoders, target)
 
 
 def test_feature_matrix_shape_and_columns(clean_fixture):
@@ -294,3 +296,126 @@ def test_missing_balcony_coded_minus_one(clean_fixture):
     enc = fit_encoders(bad)
     X = build_features(bad, enc)
     assert X.loc[bad.index[0], "balcony_code"] == -1
+
+
+# --- Heterogeneous cities: the feature set degrades per city ---------------
+#
+# The public Gurgaon feed carries furnishing, an amenity score, possession
+# age, balconies and a building name. A third-party feed for another metro
+# routinely carries none of those, and sometimes carries things Gurgaon's
+# does not. These tests pin the rule that decides what each city gets, and
+# -- more importantly -- pin that train and predict can never disagree about
+# it, which is the failure that would silently mispredict rather than crash.
+
+def _reduced_frame(n: int = 60, *, society: bool = False,
+                   amenity: bool = False) -> pd.DataFrame:
+    """A frame shaped like a sparse third-party feed: price, area, bedrooms
+    and a locality, and nothing else unless asked for."""
+    rng = np.random.default_rng(3)
+    area = rng.uniform(500, 2500, n).round()
+    ppsf = rng.uniform(4000, 15000, n).round()
+    df = pd.DataFrame({
+        "sector": rng.choice(["andheri", "bandra", "powai"], n),
+        "area": area,
+        "bedrooms": rng.integers(1, 5, n),
+        "price": (area * ppsf / 1e7),
+        "price_per_sqft": ppsf,
+    })
+    if society:
+        df["society"] = rng.choice(["tower a", "tower b"], n)
+    if amenity:
+        df["amenity_count"] = rng.integers(0, 20, n).astype(float)
+        df["is_resale"] = rng.integers(0, 2, n).astype(float)
+    return df
+
+
+def test_full_frame_selects_exactly_the_public_feature_set(clean_fixture):
+    """The catalogue must not quietly change what Gurgaon trains on. If this
+    fails, the public model's feature vector moved and its published metrics
+    no longer describe the shipped model."""
+    assert feature_columns_for(clean_fixture) == FEATURE_COLUMNS
+
+
+def test_sparse_frame_drops_every_feature_it_cannot_supply():
+    cols = feature_columns_for(_reduced_frame())
+    assert cols == ["area", "bedrooms", "sector_ppsf", "sector_ppsf_mean",
+                    "sector_ppsf_std", "sector_count"]
+    for absent in ("society_ppsf", "furnishing_code", "luxury_score",
+                   "age_code", "balcony_code", "is_house", "bathrooms"):
+        assert absent not in cols
+
+
+def test_a_city_with_extra_columns_gains_those_features():
+    cols = feature_columns_for(_reduced_frame(amenity=True))
+    assert "amenity_count" in cols and "is_resale" in cols
+
+
+def test_selected_features_always_follow_catalogue_order():
+    """Two cities that share a feature must agree on where it sits relative
+    to the others, or a feature vector built for one would be silently
+    misread as the other's."""
+    for df in (_reduced_frame(society=True, amenity=True), _reduced_frame()):
+        cols = feature_columns_for(df)
+        assert cols == [c for c in ALL_FEATURE_COLUMNS if c in set(cols)]
+
+
+def test_frame_without_a_core_feature_is_refused():
+    df = _reduced_frame().drop(columns=["bedrooms"])
+    with pytest.raises(ValueError, match="bedrooms"):
+        feature_columns_for(df)
+
+
+def test_fit_encoders_survives_a_city_with_no_society_column():
+    """A feed with no building names must not crash the encoder fit; it gets
+    a society map holding only the global fallback, which is never consulted
+    because society_ppsf is not in its feature list."""
+    enc = fit_encoders(_reduced_frame())
+    assert set(enc.society_ppsf) == {"__global__"}
+
+
+def test_build_features_never_touches_an_absent_optional_column():
+    df = _reduced_frame()
+    X = build_features(df, fit_encoders(df))
+    assert "society_ppsf" not in X.columns
+    assert X.notna().all().all()
+
+
+def test_build_features_respects_an_explicit_column_list():
+    df = _reduced_frame(society=True)
+    enc = fit_encoders(df)
+    subset = ["area", "sector_ppsf"]
+    X = build_features(df, enc, subset)
+    assert list(X.columns) == subset
+
+
+def test_requesting_a_feature_the_frame_cannot_supply_fails_loudly():
+    """The dangerous version of this bug is silent: a model fit with
+    society_ppsf, later handed a frame without a society column, must refuse
+    rather than quietly predict on a different feature set."""
+    df = _reduced_frame()
+    with pytest.raises(ValueError, match="society"):
+        build_features(df, fit_encoders(df), ["area", "society_ppsf"])
+
+
+def test_requesting_a_non_catalogue_feature_fails_loudly():
+    df = _reduced_frame()
+    with pytest.raises(ValueError, match="catalogue"):
+        build_features(df, fit_encoders(df), ["area", "vibes"])
+
+
+def test_unrecorded_amenity_count_becomes_the_missing_code_not_zero():
+    """These feeds mark 'amenities were never captured for this listing' with
+    a blank, and a blank must stay distinguishable from a genuine zero
+    amenities. Collapsing the two is how an amenity feature ends up learning
+    which listings were poorly recorded instead of which are well appointed."""
+    df = _reduced_frame(amenity=True)
+    df.loc[df.index[:5], "amenity_count"] = np.nan
+    X = build_features(df, fit_encoders(df))
+    assert (X["amenity_count"].iloc[:5] == MISSING_CODE).all()
+    assert (X["amenity_count"].iloc[5:] >= 0).all()
+
+
+def test_explicit_columns_reproduce_the_inferred_result_on_a_full_frame(clean_fixture):
+    enc = fit_encoders(clean_fixture)
+    assert build_features(clean_fixture, enc).equals(
+        build_features(clean_fixture, enc, FEATURE_COLUMNS))
