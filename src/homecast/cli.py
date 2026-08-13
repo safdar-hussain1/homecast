@@ -6,12 +6,14 @@ import json
 import sys
 import warnings
 from contextlib import contextmanager
+from pathlib import Path
 
 import joblib
 
 from homecast.cities import get_city
 from homecast.cleaning import clean_city
 from homecast.export import export_city, write_export
+from homecast.ingest import ingest_city
 from homecast.model import MODELS
 from homecast.model import evaluate as evaluate_cv
 from homecast.model import train_final
@@ -52,6 +54,15 @@ def _do_clean(city) -> None:
     print(f"Saved {len(cleaned)} listings -> {city.processed_path}")
 
 
+def _do_ingest(city, config_path: str) -> None:
+    cleaned, log = ingest_city(city.raw_path, Path(config_path))
+    city.processed_path.parent.mkdir(parents=True, exist_ok=True)
+    cleaned.to_csv(city.processed_path, index=False)
+    for line in log:
+        print(f"  - {line}")
+    print(f"Saved {len(cleaned)} listings -> {city.processed_path}")
+
+
 def _fmt_metrics(m: dict) -> str:
     rows = [("HomeCast model", m["model"])]
     if "model_no_society" in m:
@@ -78,6 +89,12 @@ def main(argv=None) -> int:
         # "accurate" (ExtraTrees) is CLI-only: it cannot be exported to the
         # browser dashboard (see homecast.export._require_exportable).
         sp.add_argument("--model", default="default", choices=sorted(MODELS))
+    ig = sub.add_parser("ingest")
+    ig.add_argument("--city", required=True)
+    ig.add_argument("--config", required=True,
+                    help="path to the city's ingestion TOML config "
+                         "(column mapping, area unit/basis, price unit, "
+                         "locality column)")
     pr = sub.add_parser("predict")
     pr.add_argument("--city", default="gurgaon")
     pr.add_argument("--sector", required=True)
@@ -98,6 +115,8 @@ def main(argv=None) -> int:
         city = get_city(a.city)
         if a.cmd == "clean":
             _do_clean(city)
+        elif a.cmd == "ingest":
+            _do_ingest(city, a.config)
         elif a.cmd == "train":
             df = _load_processed(city)
             fitted = train_final(df, model=a.model)
