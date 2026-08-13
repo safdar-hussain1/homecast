@@ -211,6 +211,20 @@ h1 .hl{color:var(--s1)}
 .caveat strong{color:var(--ink); font-weight:600}
 
 .estimator{display:grid; grid-template-columns:minmax(0,1.06fr) minmax(360px,.94fr); gap:24px; align-items:start}
+.estimator.off{display:none}
+/* Shown INSTEAD OF .estimator for a city whose data clears no quality floor
+   (see NOT_SERVED below) -- no inputs, no headline figure, just the plain
+   statement of why, and the two error rates that failed to clear it. */
+.not-served{display:none}
+.not-served.on{display:block}
+.not-served-body{padding:26px 28px 28px; max-width:78ch}
+.not-served-body .eyebrow{color:var(--warn)}
+.not-served-body h3{font-size:1.35rem; margin:9px 0 10px}
+.not-served-body .lede{margin-bottom:4px}
+.ns-rates{display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:14px; margin-top:18px}
+.ns-rate{background:var(--inset); border:1px solid var(--line); border-radius:10px; padding:12px 14px}
+.ns-rate dt{font-family:"DM Mono",monospace; font-size:10.5px; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3)}
+.ns-rate dd{font:700 1.5rem/1.1 "Public Sans",sans-serif; margin-top:6px; letter-spacing:-.02em}
 .panel{background:var(--surface); border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow)}
 .form{padding:20px 20px 22px}
 .form-grid{display:grid; grid-template-columns:repeat(6,1fr); gap:14px 14px}
@@ -489,9 +503,9 @@ footer .mono{font-size:12px; color:var(--ink-3)}
   <div class="wrap">
     <div class="hero">
       <div class="hero-head">
-        <p class="eyebrow"><span class="js-city">Gurgaon</span> · the model runs in this page</p>
-        <h1 class="display">Agents quote <span class="hl">₹/sq.ft.</span><br>HomeCast quotes a price.</h1>
-        <p>Describe a property and it is priced right here: all <span id="heroTrees">500</span> trees ship with the page, so your inputs
+        <p class="eyebrow" id="heroEyebrow"><span class="js-city">Gurgaon</span> · the model runs in this page</p>
+        <h1 class="display" id="heroTitle">Agents quote <span class="hl">₹/sq.ft.</span><br>HomeCast quotes a price.</h1>
+        <p id="heroSub">Describe a property and it is priced right here: all <span id="heroTrees">500</span> trees ship with the page, so your inputs
            never leave the browser. You get the estimate, the ₹/sq.ft. rule of thumb it is benchmarked against,
            and an honest range around it.</p>
       </div>
@@ -518,7 +532,24 @@ footer .mono{font-size:12px; color:var(--ink-3)}
       Government registration data would fix both and is the intended upgrade; it isn't wired up yet.
     </p>
 
-    <div class="estimator">
+    <!-- Shown INSTEAD OF the estimator for a city whose data clears no
+         quality floor (see NOT_SERVED in the script below): no inputs, no
+         headline price -- only the plain statement of why, and the two
+         measured error rates that failed to clear it. -->
+    <div class="panel not-served" id="notServed">
+      <div class="not-served-body">
+        <p class="eyebrow">Not served</p>
+        <h3 class="display">No price estimate for <span class="js-city">this city</span></h3>
+        <p class="lede" id="notServedNote">—</p>
+        <dl class="ns-rates">
+          <div class="ns-rate"><dt>Learned model</dt><dd id="ns-model-mape">—</dd></div>
+          <div class="ns-rate"><dt>₹/sq.ft. rule of thumb</dt><dd id="ns-rule-mape">—</dd></div>
+          <div class="ns-rate"><dt>Quality floor to serve an estimate</dt><dd id="ns-floor">—</dd></div>
+        </dl>
+      </div>
+    </div>
+
+    <div class="estimator" id="estimator">
       <!-- inputs -->
       <form class="panel form" id="form" autocomplete="off">
         <div class="form-grid">
@@ -906,6 +937,15 @@ const HAS = f => FEATURES.has(f);
    read "the model's price" reads the rule's price instead, and says so. */
 const BASELINE_SERVED = DATA.baseline_served === true;
 const BASELINE_BAND = DATA.baseline_band || [0, 0];
+/* The general quality-floor gate (see homecast.model.serving_status):
+   neither the model nor the rule of thumb clears QUALITY_FLOOR_MAPE_PCT for
+   this market. Takes priority over BASELINE_SERVED above -- a not_served
+   city may have EITHER a technical model win or a technical baseline win
+   underneath (both happen among the real private cities), so nothing below
+   may assume which. When true, the estimator (inputs + valuation slip) is
+   replaced outright by the #notServed panel: no headline price, model or
+   rule, is shown anywhere on the page. */
+const NOT_SERVED = DATA.serving_status === 'not_served';
 /* Three-letter stamp for the reference code, from the city's own name. */
 const CITY_CODE = DATA.city.replace(/[^A-Za-z]/g, '').toUpperCase().slice(0, 3) || 'CTY';
 
@@ -1089,6 +1129,39 @@ document.querySelectorAll('.js-Loc').forEach(n => { n.textContent = cap(LOC); })
 document.querySelectorAll('.js-Locs').forEach(n => { n.textContent = cap(LOCS); });
 if (!HAS('society_ppsf')) document.querySelectorAll('.soc-only').forEach(node => node.remove());
 if (!HAS('is_house')) document.querySelectorAll('.col-type').forEach(node => node.remove());
+/* Neither the model nor the rule of thumb clears the quality floor for this
+   market (see NOT_SERVED above) -- replace the whole estimator (inputs +
+   valuation slip) with the plain #notServed statement. This takes priority
+   over, and runs before, the BASELINE_SERVED block below: a not_served city
+   must never show a headline price, model or rule, anywhere on the page. */
+{
+  const estimator = $('estimator');
+  const panel = $('notServed');
+  if (NOT_SERVED && estimator && panel){
+    estimator.classList.add('off');
+    panel.classList.add('on');
+    $('notServedNote').textContent = DATA.not_served_note
+      || 'Neither the learned model nor the ₹/sq.ft. rule of thumb clears '
+        + 'the quality floor for this market.';
+    $('ns-model-mape').textContent = DATA.metrics.model.mape_pct.toFixed(1) + '% MAPE';
+    $('ns-rule-mape').textContent = DATA.metrics.baseline_sector.mape_pct.toFixed(1) + '% MAPE';
+    $('ns-floor').textContent = (DATA.quality_floor_mape_pct != null
+      ? DATA.quality_floor_mape_pct : 30) + '% MAPE';
+    // The hero copy asserts "HomeCast quotes a price" -- false for a
+    // not_served city, so it is rewritten rather than left to contradict
+    // the panel directly beneath it.
+    const eyebrow = $('heroEyebrow');
+    if (eyebrow) eyebrow.innerHTML = '<span class="js-city">' + DATA.city
+      + '</span> · no price estimate for this market';
+    const title = $('heroTitle');
+    if (title) title.innerHTML = 'Agents quote <span class="hl">₹/sq.ft.</span><br>'
+      + 'This market’s data can’t responsibly quote a price.';
+    const sub = $('heroSub');
+    if (sub) sub.textContent = 'Both the learned model and the ₹/sq.ft. rule of thumb were '
+      + 'measured against this market and neither cleared the quality floor -- see below '
+      + 'for the measured error rates and why.';
+  }
+}
 /* The model did not beat its own locality-median rule of thumb here (see
    BASELINE_SERVED above) -- this is the plain statement of that fact and
    why, shown ABOVE the price so nobody can miss it and mistake the rule for

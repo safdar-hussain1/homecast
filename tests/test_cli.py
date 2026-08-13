@@ -1,5 +1,7 @@
 import json
 
+import numpy as np
+import pandas as pd
 import pytest
 
 from homecast import cli
@@ -18,6 +20,61 @@ def city_env(tmp_path, monkeypatch, raw_fixture):
     monkeypatch.setitem(cities.CITIES, "gurgaon", c)
     return c
 
+
+@pytest.fixture()
+def servable_raw_fixture() -> pd.DataFrame:
+    """Same raw schema as conftest.py's raw_fixture, but with genuine
+    per-sector price signal (not independent noise) and a larger sample --
+    realistic enough that the trained model or its baseline clears the
+    quality floor (QUALITY_FLOOR_MAPE_PCT). raw_fixture itself is
+    deliberately small and noisy for OTHER tests that need a hopeless model
+    (see test_model.py/test_valuation.py's not_served coverage); this is the
+    servable counterpart, used here only to prove the CLI's happy predict
+    path still prints a headline price end to end."""
+    rng = np.random.default_rng(11)
+    n = 300
+    sectors = rng.choice(["sector 1", "sector 2", "sector 3", "sector 4"], n)
+    base_rate = {"sector 1": 6000.0, "sector 2": 9000.0,
+                 "sector 3": 12000.0, "sector 4": 15000.0}
+    area = rng.uniform(500, 3000, n).round()
+    ppsf = np.array([base_rate[s] for s in sectors]) * np.exp(rng.normal(0.0, 0.05, n))
+    return pd.DataFrame({
+        "property_type": rng.choice(["flat", "house"], n, p=[0.8, 0.2]),
+        "society": "test society",
+        "sector": sectors,
+        "price": (area * ppsf / 1e7).round(4),
+        "price_per_sqft": ppsf,
+        "area": area,
+        "areaWithType": "Carpet area: x",
+        "bedRoom": rng.integers(1, 6, n),
+        "bathroom": rng.integers(1, 6, n),
+        "balcony": rng.choice(["0", "1", "2", "3", "3+"], n),
+        "floorNum": rng.integers(0, 20, n).astype(float),
+        "facing": "East",
+        "agePossession": rng.choice(
+            ["New Property", "Relatively New", "Moderately Old",
+             "Old Property", "Under Construction", "Undefined"], n),
+        "super_built_up_area": np.nan, "built_up_area": np.nan, "carpet_area": area,
+        "study room": 0, "servant room": 0, "store room": 0,
+        "pooja room": 0, "others": 0,
+        "furnishing_type": rng.integers(0, 3, n),
+        "luxury_score": rng.integers(0, 175, n),
+    })
+
+
+@pytest.fixture()
+def servable_city_env(tmp_path, monkeypatch, servable_raw_fixture):
+    import homecast.cities as cities
+    raw = tmp_path / "raw" / "gurgaon_properties.csv"
+    raw.parent.mkdir()
+    servable_raw_fixture.to_csv(raw, index=False)
+    c = cities.City("gurgaon", "Gurgaon", raw,
+                    tmp_path / "processed" / "listings_clean.csv",
+                    tmp_path / "models")
+    monkeypatch.setitem(cities.CITIES, "gurgaon", c)
+    return c
+
+
 def test_clean_writes_processed(city_env, capsys):
     assert cli.main(["clean", "--city", "gurgaon"]) == 0
     assert city_env.processed_path.exists()
@@ -30,8 +87,25 @@ def test_train_writes_artifacts(city_env):
     m = json.loads((city_env.models_dir / "metrics.json").read_text())
     assert "baseline_sector" in m
     assert "model_no_society" in m
+    assert "serving_status" in m
 
-def test_predict_prints_estimate(city_env, capsys):
+def test_predict_not_served_prints_no_headline_price(city_env, capsys):
+    """city_env's data (raw_fixture, see conftest.py) is deliberately small
+    and noisy -- both the model and the sector baseline land above the
+    quality floor, so predict must print NO headline price at all, only the
+    plain-language reason. See test_predict_prints_estimate_for_a_servable_city
+    below for the counterpart where a headline price IS printed."""
+    cli.main(["train"])
+    rc = cli.main(["predict", "--sector", "sector 1", "--type", "flat",
+                   "--bhk", "3", "--bath", "2", "--area", "1500",
+                   "--furnishing", "semi-furnished", "--luxury", "50"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "No price estimate" in out
+    assert "not good enough to price a property responsibly" in out
+    assert "Cr" not in out
+
+def test_predict_prints_estimate_for_a_servable_city(servable_city_env, capsys):
     cli.main(["train"])
     rc = cli.main(["predict", "--sector", "sector 1", "--type", "flat",
                    "--bhk", "3", "--bath", "2", "--area", "1500",
@@ -118,7 +192,7 @@ def test_train_accurate_model_skips_dashboard_export(city_env, capsys):
     assert (city_env.models_dir / "metrics.json").exists()
     assert not (city_env.models_dir / "model.json").exists()
 
-def test_predict_works_after_training_the_accurate_model(city_env, capsys):
+def test_predict_works_after_training_the_accurate_model(servable_city_env, capsys):
     cli.main(["train", "--model", "accurate"])
     rc = cli.main(["predict", "--sector", "sector 1", "--type", "flat",
                    "--bhk", "3", "--bath", "2", "--area", "1500",
@@ -141,7 +215,7 @@ def test_bad_model_name_is_friendly(city_env, capsys):
     with pytest.raises(SystemExit):
         cli.main(["train", "--model", "fastest"])
 
-def test_predict_accepts_optional_society_and_balcony(city_env, capsys):
+def test_predict_accepts_optional_society_and_balcony(servable_city_env, capsys):
     cli.main(["train"])
     rc = cli.main(["predict", "--sector", "sector 1", "--type", "flat",
                    "--bhk", "3", "--bath", "2", "--area", "1500",

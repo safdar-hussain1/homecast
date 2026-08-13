@@ -279,3 +279,97 @@ def test_baseline_band_is_always_exported(payload, sparse_payload):
     for p in (p_lose, p_win):
         assert "baseline_band" in p and len(p["baseline_band"]) == 2
         assert p["baseline_band"][0] <= p["baseline_band"][1]
+
+
+# --- quality floor / serving_status reach the payload (Correction 2) ------
+#
+# A city where even the BETTER of {model, baseline} is still too unreliable
+# must not have its dashboard show a headline price at all. serving_status
+# is the general three-way decision; the export payload has to carry it (and
+# the floor value itself, and a plain-language reason when not_served) so
+# the template can gate on it. clean_fixture (via `payload`) is a real
+# not_served case: noisy enough that both numbers clear the 30% floor.
+
+def test_quality_floor_mape_pct_is_always_exported(payload):
+    from homecast.model import QUALITY_FLOOR_MAPE_PCT
+    _, p = payload
+    assert p["quality_floor_mape_pct"] == QUALITY_FLOOR_MAPE_PCT
+
+
+def test_not_served_city_carries_serving_status_and_note(payload):
+    fitted, p = payload
+    assert fitted.metrics["serving_status"] == "not_served", (
+        "fixture assumption changed: this test needs clean_fixture to be "
+        "genuinely hopeless under the quality floor, to prove the payload "
+        "carries a real not_served verdict")
+    assert p["serving_status"] == "not_served"
+    assert "not_served_note" in p and p["not_served_note"]
+    assert "not good enough to price a property responsibly" in p["not_served_note"]
+
+
+def _real_model_served_frame() -> pd.DataFrame:
+    """A real, non-rigged model win clearly UNDER the quality floor (unlike
+    sparse_payload's fixture below, which really does beat its own baseline
+    but both numbers land above 30% MAPE -- see the not_served test below)."""
+    rng = np.random.default_rng(5)
+    rows = []
+    base_rate = {f"loc{i}": rng.uniform(4000, 15000) for i in range(8)}
+    for loc, rate in base_rate.items():
+        for _ in range(45):
+            area = rng.uniform(500, 2500)
+            bedrooms = int(rng.integers(1, 6))
+            ppsf = rate * (1 + 0.18 * (bedrooms - 3)) * rng.uniform(0.98, 1.02)
+            rows.append((loc, area, bedrooms, ppsf * area / 1e7, ppsf))
+    return pd.DataFrame(rows, columns=["sector", "area", "bedrooms", "price", "price_per_sqft"])
+
+
+def test_real_model_served_payload_carries_serving_status_model():
+    df = _real_model_served_frame()
+    fitted = train_final(df)
+    city = City("modelservedtown", "Model Served Town", Path("/x"), Path("/y"),
+               Path("/z"), public=False)
+    p = export_city(fitted, df, city)
+    assert p["serving_status"] == "model"
+    assert "not_served_note" not in p
+
+
+def test_a_real_win_that_still_fails_the_floor_is_not_served(sparse_payload):
+    """sparse_payload's model genuinely beats its own baseline (see
+    test_winning_city_is_not_flagged_and_carries_no_note above) -- but both
+    numbers sit above the 30% floor. baseline_served stays False (unchanged,
+    two-way meaning) while serving_status must still be not_served: proof the
+    floor is a real, independent gate, not just a rename of baseline_served."""
+    fitted, _, p = sparse_payload
+    assert fitted.metrics["model"]["mape_pct"] >= 30.0
+    assert fitted.metrics["baseline_sector"]["mape_pct"] >= 30.0
+    assert p["baseline_served"] is False
+    assert p["serving_status"] == "not_served"
+    assert "not_served_note" in p
+
+
+def _real_baseline_served_frame() -> pd.DataFrame:
+    """A real, non-rigged baseline win clearly UNDER the quality floor:
+    bedrooms carry no real price signal, so the model has nothing to add
+    over an already-accurate locality median."""
+    rng = np.random.default_rng(3)
+    rows = []
+    base_rate = {f"loc{i}": rng.uniform(5000, 12000) for i in range(6)}
+    for loc, rate in base_rate.items():
+        for _ in range(60):
+            area = rng.uniform(600, 2200)
+            bedrooms = int(rng.integers(1, 6))
+            ppsf = rate * float(np.exp(rng.normal(0.0, 0.06)))
+            rows.append((loc, area, bedrooms, ppsf * area / 1e7, ppsf))
+    return pd.DataFrame(rows, columns=["sector", "area", "bedrooms", "price", "price_per_sqft"])
+
+
+def test_real_baseline_served_payload_carries_serving_status_baseline():
+    df = _real_baseline_served_frame()
+    fitted = train_final(df)
+    city = City("baselineservedtown", "Baseline Served Town", Path("/x"),
+               Path("/y"), Path("/z"), public=False)
+    p = export_city(fitted, df, city)
+    assert p["serving_status"] == "baseline"
+    assert p["baseline_served"] is True
+    assert "baseline_note" in p and p["baseline_note"]
+    assert "not_served_note" not in p

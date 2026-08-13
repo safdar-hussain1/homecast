@@ -7,10 +7,12 @@ from sklearn.model_selection import KFold
 from homecast.features import (ALL_FEATURE_COLUMNS, FEATURE_COLUMNS,
                                build_features, feature_columns_for,
                                fit_encoders, target)
-from homecast.model import (DEFAULT_PARAMS, MODELS, SOCIETY_MASK_FRACTION,
-                            _SOCIETY_MASK_SEED, _mask_society,
-                            _without_society, baseline_served_reason,
-                            evaluate, model_beats_baseline, predict_price,
+from homecast.model import (DEFAULT_PARAMS, MODELS, QUALITY_FLOOR_MAPE_PCT,
+                            SOCIETY_MASK_FRACTION, _SOCIETY_MASK_SEED,
+                            _mask_society, _without_society,
+                            baseline_served_reason, evaluate,
+                            meets_quality_floor, model_beats_baseline,
+                            not_served_reason, predict_price, serving_status,
                             train_final)
 
 
@@ -613,3 +615,135 @@ def test_baseline_served_reason_does_not_claim_missing_signal_it_has():
     reason = baseline_served_reason(metrics, ALL_FEATURE_COLUMNS)
     assert "no bathrooms" not in reason and "no society" not in reason
     assert "even with the full feature set" in reason
+
+
+# --- Quality floor: the three-way serving decision (Correction 2) ---------
+#
+# A confident-looking price at a hopeless error rate is worse than admitting
+# the market can't be priced responsibly. serving_status is the general rule
+# that adds a floor UNDERNEATH model_beats_baseline: it can turn either a
+# model win or a model loss into "not_served" if even the better number is
+# not good enough, but never invents a win/loss the two-way rule didn't find.
+
+def test_quality_floor_constant_is_thirty_percent():
+    """Pinned so a future edit has to change this test deliberately, not
+    silently drift the floor while every other assertion still passes."""
+    assert QUALITY_FLOOR_MAPE_PCT == 30.0
+
+
+def test_meets_quality_floor_true_when_the_winning_number_is_comfortably_under():
+    metrics = {"model": {"mape_pct": 15.3}, "baseline_sector": {"mape_pct": 17.1}}
+    assert meets_quality_floor(metrics) is True
+
+
+def test_meets_quality_floor_false_when_even_the_better_number_is_over():
+    metrics = {"model": {"mape_pct": 45.0}, "baseline_sector": {"mape_pct": 40.0}}
+    assert meets_quality_floor(metrics) is False
+
+
+# Branch 1: model-served -- model wins AND clears the floor.
+def test_serving_status_is_model_when_model_wins_and_clears_the_floor():
+    metrics = {"model": {"mape_pct": 15.3}, "baseline_sector": {"mape_pct": 17.1}}
+    assert model_beats_baseline(metrics) is True
+    assert serving_status(metrics) == "model"
+
+
+# Branch 2: baseline-served -- baseline wins AND clears the floor.
+def test_serving_status_is_baseline_when_baseline_wins_and_clears_the_floor():
+    metrics = {"model": {"mape_pct": 25.0}, "baseline_sector": {"mape_pct": 20.0}}
+    assert model_beats_baseline(metrics) is False
+    assert serving_status(metrics) == "baseline"
+
+
+# Branch 3: not served -- neither clears the floor, in BOTH underlying
+# sub-cases (the model technically "wins" a hopeless race, or genuinely
+# loses) -- the floor overrides model_beats_baseline's verdict either way.
+def test_serving_status_is_not_served_when_the_model_technically_wins_but_both_are_hopeless():
+    """Mumbai's real shape: model MAPE (63.7%) is narrowly below baseline
+    (66.9%), so model_beats_baseline is True -- but neither is a usable
+    estimate. The floor has to override a technical win."""
+    metrics = {"model": {"mape_pct": 63.7}, "baseline_sector": {"mape_pct": 66.9}}
+    assert model_beats_baseline(metrics) is True, (
+        "fixture assumption: this needs a technical model WIN to prove the "
+        "floor overrides it, not just a loss")
+    assert meets_quality_floor(metrics) is False
+    assert serving_status(metrics) == "not_served"
+
+
+def test_serving_status_is_not_served_when_the_model_also_loses():
+    """Delhi NCR's real shape: the model loses to the baseline, and the
+    baseline itself is also above the floor."""
+    metrics = {"model": {"mape_pct": 59.4}, "baseline_sector": {"mape_pct": 54.0}}
+    assert model_beats_baseline(metrics) is False
+    assert serving_status(metrics) == "not_served"
+
+
+def test_not_served_reason_states_both_mapes_and_the_floor():
+    metrics = {"model": {"mape_pct": 63.7}, "baseline_sector": {"mape_pct": 66.9}}
+    reason = not_served_reason(metrics, ["area", "bedrooms", "sector_ppsf",
+                                         "sector_ppsf_mean", "sector_ppsf_std",
+                                         "sector_count"])
+    assert "63.7" in reason and "66.9" in reason
+    assert "30" in reason
+    assert "not good enough to price a property responsibly" in reason
+
+
+def test_not_served_reason_is_accurate_even_when_the_model_technically_wins():
+    """A losing-framing sentence ("the model lost to the rule") would be
+    FALSE for Mumbai's shape, where the model technically wins. This must
+    not claim a direction it didn't check."""
+    metrics = {"model": {"mape_pct": 63.7}, "baseline_sector": {"mape_pct": 66.9}}
+    reason = not_served_reason(metrics, ["area", "bedrooms", "sector_ppsf",
+                                         "sector_ppsf_mean", "sector_ppsf_std",
+                                         "sector_count"])
+    assert "lost to" not in reason
+
+
+# --- The same three branches, proved end-to-end through evaluate() on real
+# (non-mocked) data, not just the pure-function unit tests above. ----------
+
+def test_evaluate_flags_not_served_for_a_hopeless_city(clean_fixture):
+    """clean_fixture's price_per_sqft is independent random noise (see
+    conftest.py): both the model (~56% MAPE) and the sector baseline
+    (~39% MAPE) are hopeless, so this real run must land on not_served, not
+    merely on the pre-existing baseline_served=True flag."""
+    m = evaluate(clean_fixture)
+    assert m["model"]["mape_pct"] >= QUALITY_FLOOR_MAPE_PCT
+    assert m["baseline_sector"]["mape_pct"] >= QUALITY_FLOOR_MAPE_PCT
+    assert m["serving_status"] == "not_served"
+
+
+def test_evaluate_flags_model_served_for_a_real_winning_city():
+    df = _many_localities_with_a_learnable_bedroom_effect()
+    m = evaluate(df)
+    assert m["model"]["mape_pct"] < QUALITY_FLOOR_MAPE_PCT
+    assert m["serving_status"] == "model"
+
+
+def _real_baseline_served_frame() -> pd.DataFrame:
+    """A real (non-mocked) case where the locality median is already close
+    to exact and bedrooms carry no genuine price signal, so the model has
+    nothing to add over the rule -- and both numbers are comfortably under
+    the quality floor, unlike clean_fixture's noise-dominated loss."""
+    rng = np.random.default_rng(3)
+    n_localities, n_per = 6, 60
+    base_rate = {f"loc{i}": rng.uniform(5000, 12000) for i in range(n_localities)}
+    rows = []
+    for loc, rate in base_rate.items():
+        for _ in range(n_per):
+            area = rng.uniform(600, 2200)
+            bedrooms = int(rng.integers(1, 6))     # uncorrelated with price
+            ppsf = rate * float(np.exp(rng.normal(0.0, 0.06)))
+            rows.append((loc, area, bedrooms, ppsf * area / 1e7, ppsf))
+    return pd.DataFrame(rows, columns=["sector", "area", "bedrooms", "price", "price_per_sqft"])
+
+
+def test_evaluate_flags_baseline_served_for_a_real_city_under_the_floor():
+    df = _real_baseline_served_frame()
+    m = evaluate(df)
+    assert model_beats_baseline(m) is False, (
+        "fixture assumption changed: this test needs a real baseline win "
+        "under the floor to prove serving_status lands on 'baseline', not "
+        "just 'not_served'")
+    assert m["baseline_sector"]["mape_pct"] < QUALITY_FLOOR_MAPE_PCT
+    assert m["serving_status"] == "baseline"

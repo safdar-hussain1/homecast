@@ -9,7 +9,7 @@ import pandas as pd
 from homecast.export import SAMPLE_COLUMNS
 from homecast.features import AGE_CODES, BALCONY_CODES, FURNISHING_CODES, build_features
 from homecast.model import (FittedModel, baseline_served_reason,
-                            model_beats_baseline, predict_price)
+                            not_served_reason, predict_price, serving_status)
 
 
 @dataclass(frozen=True)
@@ -134,16 +134,21 @@ def estimate(fitted: FittedModel, q: Query) -> dict:
     result["baseline_hi_cr"] = baseline_price * float(np.exp(-bq10))
 
     # served_by is the answer to "which of the two numbers above is THE
-    # estimate for this city" -- see model_beats_baseline. A city whose model
-    # does not beat its own locality-median rule must not have the model's
-    # number presented as if it were the estimate; every caller (the CLI, the
-    # dashboard export) is expected to read this field and act on it rather
-    # than always defaulting to price_cr.
-    if model_beats_baseline(fitted.metrics):
-        result["served_by"] = "model"
-    else:
-        result["served_by"] = "baseline"
+    # estimate for this city, if either" -- see homecast.model.serving_status,
+    # which layers a quality floor UNDERNEATH the plain model-vs-baseline
+    # comparison. A city whose model does not beat its own locality-median
+    # rule must not have the model's number presented as if it were the
+    # estimate, AND a city where even the better of the two is still too
+    # unreliable (both above the floor) must not have EITHER number presented
+    # as an estimate at all. Every caller (the CLI, the dashboard export) is
+    # expected to read this field and act on it rather than always defaulting
+    # to price_cr.
+    status = serving_status(fitted.metrics)
+    result["served_by"] = status
+    if status == "baseline":
         result["note"] = baseline_served_reason(fitted.metrics, fitted.columns)
+    elif status == "not_served":
+        result["note"] = not_served_reason(fitted.metrics, fitted.columns)
     return result
 
 

@@ -164,6 +164,74 @@ _EXPLANATORY_FEATURES = (
 )
 
 
+# Below this MAPE, neither the model nor the locality-median rule of thumb
+# is good enough to present as a price -- a confident-looking number this far
+# off a listing's actual price is worse than admitting the market can't be
+# priced responsibly with the data on hand (see serving_status below). 30%
+# is a deliberately round, plainly-justifiable line: it is roughly double the
+# ~13-16% irreducible noise floor this project's own data shows even a
+# well-served city (bathrooms, society, furnishing, age all present) cannot
+# get below, so a city sitting at or above 30% is not "a bit worse than
+# usual" -- it is missing real signal, not just noise. It is set ONCE, here,
+# as a general rule for every city, and must NOT be tuned per city to change
+# which cities pass or fail it -- that would defeat the entire point of
+# having a floor.
+QUALITY_FLOOR_MAPE_PCT = 30.0
+
+
+def meets_quality_floor(metrics: dict) -> bool:
+    """Whether the BETTER of {model, locality-median rule} clears
+    QUALITY_FLOOR_MAPE_PCT for this city.
+
+    Deliberately independent of model_beats_baseline: that function decides
+    WHICH of the two numbers is better; this one asks whether even the
+    better one is good enough to show anyone at all. A city can lose to its
+    baseline and still clear the floor (baseline-served), or win against its
+    baseline and still fail to clear it (e.g. Mumbai: the model technically
+    beats a hopeless baseline, but neither is within 30% MAPE of the truth).
+    """
+    better_mape = (metrics["model"]["mape_pct"] if model_beats_baseline(metrics)
+                  else metrics["baseline_sector"]["mape_pct"])
+    return better_mape < QUALITY_FLOOR_MAPE_PCT
+
+
+def serving_status(metrics: dict) -> str:
+    """The three-way serving decision for a city, from its metrics alone.
+
+    "model"      -- the learned model beats the baseline AND clears the floor.
+    "baseline"   -- the baseline is the better number AND clears the floor.
+    "not_served" -- neither clears the floor: even the better of the two is
+      too unreliable to present as a price at all. Serving a confident number
+      at that error rate is worse than serving nothing (see the module
+      docstring's QUALITY_FLOOR_MAPE_PCT comment) -- a dashboard/CLI reading
+      this value must not show a headline price estimate when it is
+      "not_served", only the measured error rates and why.
+
+    General on purpose, exactly like model_beats_baseline: derived only from
+    THIS city's own metrics dict, never its name or key, so any current or
+    future city gets the same mechanical decision.
+    """
+    if not meets_quality_floor(metrics):
+        return "not_served"
+    return "model" if model_beats_baseline(metrics) else "baseline"
+
+
+def _missing_signal_note(columns) -> str:
+    """Clause naming which explanatory columns (see _EXPLANATORY_FEATURES)
+    this city's feed lacks -- or a fixed clause when it has all of them.
+    Shared by baseline_served_reason and not_served_reason so "what is this
+    market's feed missing" is computed in exactly one place, from THIS
+    city's own feature list, never hardcoded per city.
+    """
+    cols = set(columns)
+    have = [label for f, label in _EXPLANATORY_FEATURES if f in cols]
+    missing = [label for f, label in _EXPLANATORY_FEATURES if f not in cols]
+    if not missing:
+        return "even with the full feature set available for this city"
+    signal = "area, bedrooms and locality" + (f", {', '.join(have)}" if have else "")
+    return f"the available columns are only {signal} (no {', '.join(missing)})"
+
+
 def baseline_served_reason(metrics: dict, columns) -> str:
     """Plain-language explanation of why a city's estimate falls back to the
     locality-median rule of thumb instead of the learned model.
@@ -175,18 +243,38 @@ def baseline_served_reason(metrics: dict, columns) -> str:
     was written getting hand-written prose that silently goes stale for a
     fifth.
     """
-    cols = set(columns)
-    have = [label for f, label in _EXPLANATORY_FEATURES if f in cols]
-    missing = [label for f, label in _EXPLANATORY_FEATURES if f not in cols]
     m, b = metrics["model"]["mape_pct"], metrics["baseline_sector"]["mape_pct"]
     verdict = "tied" if abs(m - b) < 1e-9 else "lost to"
     reason = (f"the learned model {verdict} the ₹/sq.ft. rule of thumb "
              f"for this market ({m:.1f}% MAPE vs {b:.1f}% for the rule)")
-    if not missing:
-        return reason + " even with the full feature set available for this city"
-    signal = "area, bedrooms and locality" + (f", {', '.join(have)}" if have else "")
-    return (reason + f" -- the available columns are only {signal} "
-            f"(no {', '.join(missing)})")
+    note = _missing_signal_note(columns)
+    sep = " " if note.startswith("even") else " -- "
+    return reason + sep + note
+
+
+def not_served_reason(metrics: dict, columns) -> str:
+    """Plain-language explanation of why NEITHER number is presented for this
+    city: the data available is not good enough to price a property
+    responsibly.
+
+    Deliberately does NOT reuse baseline_served_reason's "lost to"/"tied"
+    framing: a not-served city can have EITHER verdict underneath (Mumbai's
+    model narrowly beats its own hopeless baseline and is still not_served,
+    Delhi NCR's model loses AND is not_served), so a sentence asserting one
+    direction would be wrong for the other. Instead this states both MAPE
+    numbers plainly against the floor itself. Reuses _missing_signal_note
+    (a thin feature set is usually WHY a market is this hard to price); the
+    numbers themselves are "how dispersed the market is" -- how much of a
+    listing's own price this data alone cannot explain, even granting it the
+    correct locality and area.
+    """
+    m, b = metrics["model"]["mape_pct"], metrics["baseline_sector"]["mape_pct"]
+    better = min(m, b)
+    return (f"the data available for this market is not good enough to "
+            f"price a property responsibly: neither the learned model "
+            f"({m:.1f}% MAPE) nor the ₹/sq.ft. rule of thumb ({b:.1f}% MAPE) "
+            f"clears the {QUALITY_FLOOR_MAPE_PCT:.0f}% MAPE quality floor "
+            f"(best of the two is {better:.1f}%) -- {_missing_signal_note(columns)}")
 
 
 def evaluate(df: pd.DataFrame, model: str = "default", n_splits: int = 5,
@@ -237,6 +325,16 @@ def evaluate(df: pd.DataFrame, model: str = "default", n_splits: int = 5,
     # export payload, metrics.json) reads one shared answer instead of each
     # re-deriving its own opinion about what "beats" means.
     out["baseline_served"] = not model_beats_baseline(out)
+    # The three-way decision (see serving_status): "model" / "baseline" /
+    # "not_served". Independent of, and computed after, baseline_served
+    # above -- a city can be "not model_beats_baseline" (baseline_served
+    # True) yet still clear the quality floor (baseline-served), or can beat
+    # its own baseline (baseline_served False) and still fail to clear the
+    # floor (not_served, e.g. Mumbai). Every consumer that needs to know
+    # whether to show a headline price at all should read THIS field, not
+    # baseline_served, which only ever answers "model vs baseline", never
+    # "is either one good enough".
+    out["serving_status"] = serving_status(out)
     return out
 
 

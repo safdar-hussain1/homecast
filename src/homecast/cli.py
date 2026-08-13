@@ -14,7 +14,7 @@ from homecast.cities import get_city
 from homecast.cleaning import clean_city
 from homecast.export import export_city, write_export
 from homecast.ingest import ingest_city
-from homecast.model import MODELS
+from homecast.model import MODELS, QUALITY_FLOOR_MAPE_PCT
 from homecast.model import evaluate as evaluate_cv
 from homecast.model import train_final
 from homecast.valuation import Query, estimate
@@ -75,7 +75,15 @@ def _fmt_metrics(m: dict) -> str:
     out = [f"{'':28s} {'MAE (lakh)':>10s} {'MAPE %':>8s} {'R2':>6s}"]
     for name, r in rows:
         out.append(f"{name:28s} {r['mae_lakh']:10.1f} {r['mape_pct']:8.1f} {r['r2']:6.3f}")
-    if m.get("baseline_served"):
+    if m.get("serving_status") == "not_served":
+        # Printed on every train/evaluate for this city, not only on
+        # `predict` -- whoever reads this table must not walk away thinking
+        # either row above is a usable price estimate.
+        out.append(f"NOTE: neither this model nor the sector-median baseline "
+                   f"clears the {QUALITY_FLOOR_MAPE_PCT:.0f}% MAPE quality "
+                   f"floor for this market -- predict/export do not present "
+                   f"a headline price estimate at all.")
+    elif m.get("baseline_served"):
         # Printed on every train/evaluate for this city, not only on
         # `predict` -- whoever reads this table must not walk away thinking
         # "HomeCast model" above is what a caller actually gets.
@@ -139,7 +147,8 @@ def main(argv=None) -> int:
             (city.models_dir / "metrics.json").write_text(
                 json.dumps({k: fitted.metrics[k] for k in
                             ("model", "model_no_society", "baseline_sector",
-                             "baseline_global", "baseline_served", "n", "n_splits", "params",
+                             "baseline_global", "baseline_served", "serving_status",
+                             "n", "n_splits", "params",
                              "model_name")}, indent=2))
             print(_fmt_metrics(fitted.metrics))
             print(f"Artifacts -> {city.models_dir}")
@@ -160,7 +169,15 @@ def main(argv=None) -> int:
                       luxury_score=a.luxury, age=a.age, society=a.society,
                       balcony=a.balcony)
             e = estimate(fitted, q)
-            if e["served_by"] == "baseline":
+            if e["served_by"] == "not_served":
+                # Neither the model nor the rule of thumb clears the quality
+                # floor for this market (see homecast.model.serving_status)
+                # -- no headline price is printed at all, only why.
+                print("No price estimate: the data available for this "
+                      "market is not good enough to price a property "
+                      "responsibly.")
+                print(f"note: {e['note']}")
+            elif e["served_by"] == "baseline":
                 # This city's model does not beat its own locality-median
                 # rule of thumb (see homecast.model.model_beats_baseline) --
                 # the rule IS the estimate here, not the model's number with

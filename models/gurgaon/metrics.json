@@ -20,6 +20,7 @@
     "r2": 0.2992446772151418
   },
   "baseline_served": false,
+  "serving_status": "model",
   "n": 3600,
   "n_splits": 5,
   "params": {

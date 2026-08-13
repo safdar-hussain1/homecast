@@ -130,25 +130,67 @@ def society_signal_fixture() -> pd.DataFrame:
         "age_possession": "New Property",
     })
 
-# --- served_by: which number is THE estimate ------------------------------
+# --- served_by: which number (if any) is THE estimate ---------------------
 #
 # A city whose model does not beat its own locality-median rule must have
-# the rule presented as the estimate, not the model's own number (see
-# homecast.model.model_beats_baseline). clean_fixture's model (see
-# conftest.py) is small and noisy enough that it genuinely loses to the
-# sector baseline -- this is a real losing case, not a mocked metrics dict.
+# the rule presented as the estimate, not the model's own number. A city
+# where even the BETTER of the two is still too unreliable (both above the
+# quality floor -- see homecast.model.serving_status) must not have EITHER
+# number presented as an estimate at all: served_by becomes "not_served".
+# clean_fixture's model (see conftest.py) is small and noisy enough that it
+# genuinely loses to the sector baseline AND leaves both numbers above the
+# quality floor -- this is a real not_served case, not a mocked metrics dict.
 
-def test_losing_model_is_served_by_the_baseline(fitted):
-    from homecast.model import model_beats_baseline
-    assert not model_beats_baseline(fitted.metrics), (
+def test_hopeless_model_is_not_served(fitted):
+    from homecast.model import serving_status
+    assert serving_status(fitted.metrics) == "not_served", (
         "fixture assumption changed: this test needs clean_fixture's model "
-        "to lose, to prove estimate() actually falls back for a real case")
+        "to be genuinely hopeless (both model and baseline over the quality "
+        "floor), to prove estimate() actually withholds a headline for a "
+        "real case")
     e = estimate(fitted, q())
-    assert e["served_by"] == "baseline"
-    assert e["price_cr"] > 0                       # the model number is still there...
+    assert e["served_by"] == "not_served"
     assert "note" in e and e["note"]
-    # ...but baseline_price_cr, not price_cr, is what a caller must present
-    # as THE estimate -- see cli.py's predict command, which reads this.
+    assert "not good enough to price a property responsibly" in e["note"]
+    # The raw numbers are still computed (transparency/debugging) -- it is
+    # the CALLER's job (CLI/dashboard) not to present either as a headline.
+    assert e["price_cr"] > 0
+    assert e["baseline_price_cr"] > 0
+
+
+@pytest.fixture()
+def baseline_served_fixture():
+    """A real, non-rigged case genuinely served by the rule of thumb, unlike
+    clean_fixture's hopeless loss: the locality median is already close to
+    exact and bedrooms carry no real price signal, so the model has nothing
+    to add over the rule -- and both numbers land comfortably under the
+    quality floor."""
+    rng = np.random.default_rng(3)
+    n_localities, n_per = 6, 60
+    base_rate = {f"loc{i}": rng.uniform(5000, 12000) for i in range(n_localities)}
+    rows = []
+    for loc, rate in base_rate.items():
+        for _ in range(n_per):
+            area = rng.uniform(600, 2200)
+            bedrooms = int(rng.integers(1, 6))     # uncorrelated with price
+            ppsf = rate * float(np.exp(rng.normal(0.0, 0.06)))
+            rows.append((loc, area, bedrooms, ppsf * area / 1e7, ppsf))
+    df = pd.DataFrame(rows, columns=["sector", "area", "bedrooms", "price", "price_per_sqft"])
+    return train_final(df)
+
+
+def test_real_baseline_served_case_under_the_floor(baseline_served_fixture):
+    from homecast.model import model_beats_baseline, serving_status
+    assert model_beats_baseline(baseline_served_fixture.metrics) is False, (
+        "fixture assumption changed: this test needs a real baseline win to "
+        "prove the rule genuinely gets served, not a mocked metrics dict")
+    assert serving_status(baseline_served_fixture.metrics) == "baseline"
+    e = estimate(baseline_served_fixture, Query(
+        sector="loc0", property_type="flat", bedrooms=3, bathrooms=2,
+        area=1200.0, furnishing="semi-furnished", luxury_score=50))
+    assert e["served_by"] == "baseline"
+    assert e["price_cr"] > 0
+    assert "note" in e and e["note"]
     assert e["baseline_price_cr"] > 0
     assert e["baseline_lo_cr"] < e["baseline_price_cr"] < e["baseline_hi_cr"]
 

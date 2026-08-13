@@ -14,8 +14,9 @@ import pandas as pd
 
 from homecast.cities import City
 from homecast.features import AGE_CODES, BALCONY_CODES, FURNISHING_CODES
-from homecast.model import (FittedModel, baseline_served_reason,
-                            model_beats_baseline)
+from homecast.model import (QUALITY_FLOOR_MAPE_PCT, FittedModel,
+                            baseline_served_reason, model_beats_baseline,
+                            not_served_reason, serving_status)
 
 # Columns the browser's comparables table shows, when the city has them.
 # property_type is Gurgaon-only; a feed that doesn't say flat-vs-house
@@ -97,7 +98,17 @@ def export_city(fitted: FittedModel, df: pd.DataFrame, city: City) -> dict:
     # (see model_beats_baseline). A city that does not must not have its
     # dashboard present the model's number as THE estimate -- see the
     # template's BASELINE_SERVED handling, which reads this exact field.
+    # Kept exactly as before (backward compatible) -- it answers ONLY
+    # "model vs baseline", never "is either one good enough". See `status`
+    # below for the general three-way decision that also applies the
+    # quality floor; the template must gate on THAT first.
     served = not model_beats_baseline(fitted.metrics)
+    # The three-way decision (see homecast.model.serving_status): "model" /
+    # "baseline" / "not_served". A city that is not_served must not have its
+    # dashboard present a headline price estimate at all -- see the
+    # template's NOT_SERVED handling, which reads this exact field FIRST,
+    # ahead of baseline_served.
+    status = serving_status(fitted.metrics)
     payload = {
         "city": city.display,
         "generated_n": int(len(df)),
@@ -105,6 +116,11 @@ def export_city(fitted: FittedModel, df: pd.DataFrame, city: City) -> dict:
         # Gurgaon narrative (findings, methodology, hardcoded figures).
         "narrative": bool(city.public),
         "baseline_served": served,
+        "serving_status": status,
+        # Exported unconditionally (like "band"/"baseline_band" below) so a
+        # not_served city's page can state, in plain numbers, exactly what
+        # line its market failed to clear.
+        "quality_floor_mape_pct": QUALITY_FLOOR_MAPE_PCT,
         "model": {"init": float(np.squeeze(fitted.model.init_.constant_)),
                   "learning_rate": float(fitted.model.learning_rate),
                   "trees": [tree_to_arrays(e[0].tree_) for e in fitted.model.estimators_]},
@@ -144,6 +160,14 @@ def export_city(fitted: FittedModel, df: pd.DataFrame, city: City) -> dict:
     # render an empty note block instead of omitting it.
     if served:
         payload["baseline_note"] = baseline_served_reason(fitted.metrics, columns)
+    # Only present for a not_served city, same reasoning as baseline_note
+    # above. This is the note the template must actually show for such a
+    # city -- baseline_note above may or may not also be present (it reflects
+    # the plain model-vs-baseline race, which a not_served city can have
+    # gone either way), but it is never the authoritative explanation once
+    # the quality floor is the reason nothing is being shown.
+    if status == "not_served":
+        payload["not_served_note"] = not_served_reason(fitted.metrics, columns)
     return payload
 
 
