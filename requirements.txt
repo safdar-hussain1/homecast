@@ -1,7 +1,21 @@
-pandas>=3.0
-numpy>=2.5
-scikit-learn>=1.9
-matplotlib>=3.11
-joblib>=1.5
-pytest>=9.1
-jupyter>=1.1
+# Pinned reproducing environment.
+#
+# These are the exact versions every number in README.md and
+# reports/MODEL_CARD.md was produced with (Python 3.12.13). Install this file
+# BEFORE `pip install -e .` so pip resolves these versions rather than the
+# deliberately looser floors in pyproject.toml:
+#
+#     pip install -r requirements.txt
+#     pip install -e .
+#
+# pyproject.toml keeps loose floors so the package installs on older stacks;
+# on those older floors the metrics can differ in the last decimal.
+pandas==3.0.3
+numpy==2.5.1
+scikit-learn==1.9.0
+scipy==1.18.0
+matplotlib==3.11.0
+joblib==1.5.3
+pytest==9.1.1
+jupyter==1.1.1
+ipykernel==7.3.0

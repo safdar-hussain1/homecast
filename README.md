@@ -34,10 +34,30 @@ cd homecast
 
 python3 -m venv .venv
 source .venv/bin/activate      # Windows: .venv\Scripts\activate
-pip install -e .
+
+pip install -r requirements.txt   # pinned environment that reproduces the numbers
+pip install -e .                  # then the package itself
 
 homecast train --city gurgaon
 ```
+
+`requirements.txt` is the reproducing environment: install it *before*
+`pip install -e .` so pip resolves those versions rather than the looser
+floors in `pyproject.toml`. The package's own floors are deliberately loose so
+it stays installable on older stacks — but on a much older scikit-learn the
+metrics can move in the last decimal (R² 0.808 instead of 0.806, for
+instance). Every number published in this README and in the model card was
+produced with:
+
+| Library | Version |
+|---|---|
+| Python | 3.12.13 |
+| pandas | 3.0.3 |
+| NumPy | 2.5.1 |
+| scikit-learn | 1.9.0 |
+| SciPy | 1.18.0 |
+| joblib | 1.5.3 |
+| Matplotlib | 3.11.0 |
 
 Output:
 
@@ -57,7 +77,7 @@ homecast predict --city gurgaon --sector "sector 65" --type flat \
 ```
 
 ```
-Estimated price: Rs 2.78 Cr (range 2.03 - 3.83 Cr)
+Estimated price: Rs 2.78 Cr (range 2.02 - 3.80 Cr)
 ```
 
 Note the `--city` flag comes **after** the subcommand (`homecast train --city
@@ -85,10 +105,15 @@ model: median ₹/sqft for the listing's sector, times the property's area.
 The model cuts MAE by roughly a quarter against that baseline.
 
 **The band**: each estimate ships with a range, not just a point. It's the
-10th–90th percentile of out-of-fold log-residuals, converted to a
-multiplicative range: roughly **-27% to +38%** around the point estimate.
-The band is asymmetric — the model's misses skew larger on the upside than
-the downside, in relative terms — see the error structure in Methodology.
+10th–90th percentile of out-of-fold log-residuals (residual =
+`log(pred) − log(actual)`, so `actual = pred × exp(−residual)`), converted to
+a multiplicative range: roughly **−27.4% to +36.7%** around the point
+estimate. The percentage range looks lopsided, but the band is near-symmetric
+in log space — q10 −0.313 against q90 +0.320 — and exponentiating a symmetric
+log interval always yields a wider positive percentage than negative one. The
+asymmetry is arithmetic, not a property of the model's errors. Where the
+errors really are uneven is across the price range: see the quintile
+structure in Methodology.
 
 Model parameters: `n_estimators=300, max_depth=3, learning_rate=0.06,
 subsample=0.9, random_state=7`. These are HomeCast's own default parameters
@@ -127,7 +152,9 @@ listings; predictions are collected out-of-fold, so every metric above is
 computed on rows the model never trained on for that prediction. Feature
 importances from the trained model: `area` 0.537, `sector_ppsf` 0.195,
 `bathrooms` 0.157, `is_house` 0.085 — area and sector together account for
-over 70% of the model's decisions.
+over 70% of the model's decisions. These are exported into
+`models/gurgaon/model.json` as `feature_importances`, and the dashboard reads
+them from there rather than keeping its own copy.
 
 **Error structure by price quintile** (mean signed log-residual, positive =
 overestimate): Q1 +0.129, Q2 +0.033, Q3 −0.001, Q4 −0.033, Q5 −0.129 —
@@ -158,7 +185,7 @@ on the cleaned 3,600-listing dataset (2,799 flats, 801 houses):
 
 ```
 data/
-  gurgaon/raw/gurgaon_properties.csv        # raw scraped listings (3,803 rows)
+  gurgaon/raw/gurgaon_properties.csv        # raw listing snapshot (3,803 rows, third-party data)
   gurgaon/processed/listings_clean.csv      # output of `homecast clean` (3,600 rows)
   DATA_DICTIONARY.md                        # column reference for both files
 src/homecast/
@@ -170,7 +197,7 @@ src/homecast/
   export.py       # write the browser-side model.json export
   cli.py          # `homecast` command line: clean, train, evaluate, predict, export-dashboard
   plotting.py     # shared plot styling for the notebooks
-tests/            # 44 tests covering cities, cleaning, features, model, valuation, export, CLI
+tests/            # 61 tests covering cities, cleaning, features, model, valuation, export, CLI
 notebooks/
   gurgaon_real_estate_eda.ipynb   # exploratory analysis, market findings
   valuation_model.ipynb           # model development, CV, error analysis
@@ -211,6 +238,20 @@ dashboard's in-browser predictions are plain JavaScript that walks the
 exported gradient-boosted trees directly — no ML runtime in the browser. It
 matches the Python model to about 1e-14 (tested at 1e-9 tolerance).
 
+## Data and licence
+
+The **code** in this repository is [MIT](LICENSE) licensed.
+
+The **data** is not mine to license. `data/gurgaon/raw/gurgaon_properties.csv`
+is a snapshot of residential listings from a public Indian property-listing
+portal, redistributed here so the pipeline and every published number can be
+reproduced. Nothing in the file or in this repository records which portal it
+came from or under what terms it was collected, and I am not going to guess —
+treat it as third-party listing content, use it for study and reproduction,
+and check the originating portal's terms before any other use. Prices are
+asking prices, not transactions. See [`data/DATA_DICTIONARY.md`](data/DATA_DICTIONARY.md)
+and [`reports/MODEL_CARD.md`](reports/MODEL_CARD.md).
+
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE) — code only; see the note above for the dataset.

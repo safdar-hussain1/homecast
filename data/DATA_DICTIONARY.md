@@ -3,12 +3,29 @@
 Two files, same listings, different stages of the pipeline:
 
 - **`data/gurgaon/raw/gurgaon_properties.csv`** — 3,803 listings x 23 columns,
-  as scraped from a property portal. Untouched raw column names.
+  as collected from a public Indian property-listing portal. Untouched raw
+  column names.
 - **`data/gurgaon/processed/listings_clean.csv`** — 3,600 listings, output of
   `homecast clean --city gurgaon` (`src/homecast/cleaning.py`). Same columns,
   renamed to snake_case, with categorical labels applied, unpriced rows
   dropped, and percentile outliers on `price_per_sqft`/`area` trimmed. See
   the README's Methodology section for the row-by-row cleaning trail.
+
+## Where this data came from, and what you may do with it
+
+The snapshot is a scrape of residential listings from a public Indian
+property-listing portal, redistributed in this repository so that every
+published number can be reproduced end to end. **Nothing in the file or in
+this repository records which portal it was taken from, or when** — no source
+URL, no collection date, no metadata block — so no specific site is named
+here. Naming one on the strength of the column layout alone would be a guess
+dressed up as a fact.
+
+The repository's `LICENSE` (MIT) covers the **code only**. The CSV is
+third-party listing content and carries no licence grant from this project.
+It is included for study and reproduction; check the originating portal's
+terms before putting it to any other use. All prices are **asking prices** as
+listed, not confirmed transaction prices.
 
 Units: `price` is in **₹ crore** (1 crore = ₹10,000,000), `price_per_sqft` is
 in **₹**, and every area column is in **sq. ft.**
