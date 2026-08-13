@@ -22,3 +22,8 @@ __pycache__/
 
 # Model artifacts (reproducible via `homecast train`; JSON artifacts are committed)
 models/*/model.joblib
+
+# Private multi-city tier: raw data, processed data and models for cities
+# that cannot be published in this public repo. Nothing under here may ever
+# be committed -- see tests/test_private.py for the adversarial guard.
+private/

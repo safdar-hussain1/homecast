@@ -14,6 +14,10 @@ class City:
     raw_path: Path
     processed_path: Path
     models_dir: Path
+    # True for every city shippable in the public repo/dashboard. Private
+    # cities (see homecast.private) are registered with public=False so
+    # anything that must only ever see the public surface can filter on it.
+    public: bool = True
 
 
 def _city(key: str, display: str, raw_name: str) -> City:
@@ -27,9 +31,23 @@ def _city(key: str, display: str, raw_name: str) -> City:
     )
 
 
-CITIES: dict[str, City] = {
-    "gurgaon": _city("gurgaon", "Gurgaon", "gurgaon_properties.csv"),
-}
+def _load_all_cities() -> dict[str, City]:
+    # Deferred import: homecast.private imports City/PROJECT_ROOT from this
+    # module, so importing it at module scope here would be circular.
+    from homecast.private import load_private_cities
+    cities: dict[str, City] = {
+        "gurgaon": _city("gurgaon", "Gurgaon", "gurgaon_properties.csv"),
+    }
+    cities.update(load_private_cities())
+    return cities
+
+
+CITIES: dict[str, City] = _load_all_cities()
+
+
+def public_cities() -> dict[str, City]:
+    """Cities safe for public commands / the public dashboard build to see."""
+    return {k: c for k, c in CITIES.items() if c.public}
 
 
 def get_city(key: str) -> City:
