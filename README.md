@@ -264,7 +264,7 @@ src/homecast/
   reference.py    # rate-based reference calculator (for markets with no listing data)
   cli.py          # `homecast` command line: clean, train, evaluate, predict, ingest, export-dashboard
   plotting.py     # shared plot styling for the notebooks
-tests/            # 154 tests covering cities, cleaning, features, model, valuation, export, CLI, ingestion, the reference calculator, and the private/public boundary
+tests/            # 277 tests covering cities, cleaning, features, model, valuation, export, CLI, ingestion, the reference calculator, and the private/public boundary
 notebooks/
   gurgaon_real_estate_eda.ipynb   # exploratory analysis, market findings
   valuation_model.ipynb           # model development, CV, error analysis
