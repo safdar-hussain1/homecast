@@ -1,3 +1,4 @@
+import numpy as np
 import pytest
 
 from homecast.model import train_final
@@ -15,8 +16,14 @@ def q(**over):
     base.update(over)
     return Query(**base)
 
-def test_estimate_band_ordering(fitted):
+def test_estimate_band_applies_the_stored_band_with_the_right_sign(fitted):
+    """band = (q10, q90) of log(pred) - log(actual), so actual = pred*exp(-res):
+    the q90 residual sets the LOW end and q10 the HIGH end. A sign flip here
+    would still produce lo < price < hi, so assert the exact multipliers."""
     e = estimate(fitted, q())
+    q10, q90 = fitted.band
+    assert e["lo_cr"] == pytest.approx(e["price_cr"] * np.exp(-q90))
+    assert e["hi_cr"] == pytest.approx(e["price_cr"] * np.exp(-q10))
     assert e["lo_cr"] < e["price_cr"] < e["hi_cr"]
     assert e["price_cr"] > 0
 

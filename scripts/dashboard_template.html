@@ -771,11 +771,16 @@ function featureRow(q){
   return DATA.feature_order.map(k => v[k]);
 }
 
+/* DATA.band is [q10, q90] of residual = log(pred) − log(actual), so
+   actual = pred × exp(−residual). The sign is negated on purpose: the q90
+   residual (the biggest overestimates) gives the LOW end of the true price and
+   the q10 residual gives the HIGH end. Mirrors estimate() in valuation.py.
+   Do not "fix" this back. */
 function estimateFor(q){
   const price = predict(DATA.model, featureRow(q));
   return {price: price,
-          lo: price * Math.exp(DATA.band[0]),
-          hi: price * Math.exp(DATA.band[1])};
+          lo: price * Math.exp(-DATA.band[1]),
+          hi: price * Math.exp(-DATA.band[0])};
 }
 
 /* ── self-test hook: three canned queries into document.title ─────────── */

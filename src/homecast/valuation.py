@@ -42,10 +42,14 @@ def estimate(fitted: FittedModel, q: Query) -> dict:
                          f"{lo_a:.0f}-{hi_a:.0f} sq.ft.")
     X = build_features(query_to_row(q), fitted.sector_map)
     price = float(predict_price(fitted, X)[0])
-    lo_b, hi_b = fitted.band
+    # The band holds the 10th/90th percentile of residual = log(pred) - log(actual),
+    # so actual = pred * exp(-residual). The SIGN IS NEGATED on purpose: the q90
+    # residual (the model's biggest overestimates) maps to the LOW end of the true
+    # price, and the q10 residual maps to the HIGH end. Do not "fix" this back.
+    q10, q90 = fitted.band
     return {"price_cr": price,
-            "lo_cr": price * float(np.exp(lo_b)),
-            "hi_cr": price * float(np.exp(hi_b))}
+            "lo_cr": price * float(np.exp(-q90)),
+            "hi_cr": price * float(np.exp(-q10))}
 
 
 def comparables(df: pd.DataFrame, q: Query, k: int = 5) -> pd.DataFrame:
