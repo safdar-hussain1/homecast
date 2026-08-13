@@ -80,6 +80,16 @@ def build_features(df: pd.DataFrame, encoders: Encoders) -> pd.DataFrame:
     if unknown:
         raise ValueError(f"Unknown furnishing labels: {sorted(unknown)}")
     balcony = df["balcony"].astype(str)
+    sector_ppsf = df["sector"].map(encoders.sector_ppsf) \
+                    .fillna(encoders.sector_ppsf["__global__"]).astype(float)
+    # Fallback chain for society_ppsf: known society -> its own smoothed rate;
+    # unknown/missing society -> that LISTING's sector rate (a building we
+    # can't identify is still in a known sector -- a far better prior than
+    # the city-wide median); sector also unknown -> sector_ppsf has already
+    # fallen back to the global median above, so this chains through to that
+    # automatically (row-aligned fillna, not a single scalar).
+    society_ppsf = df["society"].map(encoders.society_ppsf).astype(float)
+    society_ppsf = society_ppsf.fillna(sector_ppsf)
     out = pd.DataFrame({
         "area": df["area"].astype(float),
         "bedrooms": df["bedrooms"].astype(float),
@@ -88,15 +98,13 @@ def build_features(df: pd.DataFrame, encoders: Encoders) -> pd.DataFrame:
         "furnishing_code": df["furnishing_type"].map(FURNISHING_CODES).astype(float),
         "luxury_score": df["luxury_score"].astype(float),
         "age_code": df["age_possession"].map(AGE_CODES).fillna(-1).astype(float),
-        "sector_ppsf": df["sector"].map(encoders.sector_ppsf)
-                         .fillna(encoders.sector_ppsf["__global__"]).astype(float),
+        "sector_ppsf": sector_ppsf,
         "sector_ppsf_mean": df["sector"].map(encoders.sector_ppsf_mean)
                          .fillna(encoders.sector_ppsf_mean["__global__"]).astype(float),
         "sector_ppsf_std": df["sector"].map(encoders.sector_ppsf_std)
                          .fillna(encoders.sector_ppsf_std["__global__"]).astype(float),
         "sector_count": df["sector"].map(encoders.sector_count).fillna(0.0).astype(float),
-        "society_ppsf": df["society"].map(encoders.society_ppsf)
-                         .fillna(encoders.society_ppsf["__global__"]).astype(float),
+        "society_ppsf": society_ppsf,
         "balcony_code": balcony.map(BALCONY_CODES).fillna(-1).astype(float),
     })
     return out[FEATURE_COLUMNS]

@@ -29,6 +29,7 @@ def test_train_writes_artifacts(city_env):
         assert (city_env.models_dir / name).exists()
     m = json.loads((city_env.models_dir / "metrics.json").read_text())
     assert "baseline_sector" in m
+    assert "model_no_society" in m
 
 def test_predict_prints_estimate(city_env, capsys):
     cli.main(["train"])

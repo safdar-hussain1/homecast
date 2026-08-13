@@ -184,6 +184,11 @@ def test_society_encoding_only_sees_training_rows(monkeypatch):
         f"fit_encoders was handed all {len(df)} rows: the fold loop is leaking")
 
 def test_unseen_society_falls_back_to_global_median():
+    """In `_society_frame` every row is "sector 1" -- the whole dataset is one
+    sector, so its sector rate and the global median are numerically the same
+    value here. See the dedicated fallback-chain tests below for a fixture
+    with >1 sector, which pins down that the fallback is really "the row's
+    OWN sector rate", not the global median directly."""
     df = _society_frame()
     train = df[df["society"] != "big society"]
     enc = fit_encoders(train)
@@ -193,14 +198,82 @@ def test_unseen_society_falls_back_to_global_median():
     assert (X.loc[unseen, "society_ppsf"] == enc.society_ppsf["__global__"]).all()
 
 def test_missing_society_falls_back_to_global_median():
-    """A listing with no society name at all gets the plain global median —
-    it is not bucketed as its own pseudo-society."""
+    """A listing with no society name at all gets the row's sector rate (here
+    numerically equal to the global median -- see the note above); it is not
+    bucketed as its own pseudo-society."""
     df = _society_frame()
     enc = fit_encoders(df)
     X = build_features(df, enc)
     missing = df["society"].isna()
     assert missing.any(), "fixture has no missing society — the test would self-void"
     assert (X.loc[missing, "society_ppsf"] == enc.society_ppsf["__global__"]).all()
+
+def test_known_society_uses_its_own_smoothed_rate():
+    """A recognised society must use its own encoding, not fall back at all."""
+    df = _society_frame()
+    enc = fit_encoders(df)
+    X = build_features(df, enc)
+    known = df["society"] == "big society"
+    assert np.allclose(X.loc[known, "society_ppsf"], enc.society_ppsf["big society"])
+
+
+# ── society_ppsf fallback chain: society -> that row's sector -> global ────
+# (needs >1 sector so "the row's own sector rate" is distinguishable from
+# "the city-wide global median" -- `_society_frame` is a single sector, where
+# the two happen to coincide.)
+
+def _two_sector_frame() -> pd.DataFrame:
+    rng = np.random.default_rng(21)
+    n = 60
+    sector = ["sector hi"] * 30 + ["sector lo"] * 30
+    ppsf = np.array([20000.0] * 30 + [6000.0] * 30) * np.exp(rng.normal(0.0, 0.01, n))
+    area = rng.uniform(800.0, 2000.0, n)
+    society = [f"soc {i}" for i in range(n)]   # every society a singleton
+    return pd.DataFrame({
+        "sector": sector, "society": society, "property_type": "flat",
+        "price": area * ppsf / 1e7, "price_per_sqft": ppsf, "area": area,
+        "bedrooms": 3, "bathrooms": 2, "balcony": "2",
+        "furnishing_type": "semi-furnished", "luxury_score": 50,
+        "age_possession": "New Property",
+    })
+
+def _query_row(**over) -> pd.DataFrame:
+    base = dict(sector="sector hi", society="unseen society", property_type="flat",
+                price_per_sqft=np.nan, area=1000.0, bedrooms=3, bathrooms=2,
+                balcony="2", furnishing_type="semi-furnished", luxury_score=50,
+                age_possession="New Property")
+    base.update(over)
+    return pd.DataFrame([base])
+
+def test_unknown_society_with_known_sector_falls_back_to_that_sector_rate():
+    df = _two_sector_frame()
+    enc = fit_encoders(df)
+    global_median = enc.society_ppsf["__global__"]
+    sector_hi_rate = enc.sector_ppsf["sector hi"]
+    assert sector_hi_rate != pytest.approx(global_median), \
+        "fixture self-voids: sector hi's rate coincides with the global median"
+    q = _query_row(sector="sector hi", society="a brand new building nobody trained on")
+    assert "a brand new building nobody trained on" not in enc.society_ppsf
+    X = build_features(q, enc)
+    assert X["society_ppsf"].iloc[0] == pytest.approx(sector_hi_rate)
+    assert X["society_ppsf"].iloc[0] != pytest.approx(global_median)
+
+def test_unknown_society_and_unknown_sector_falls_back_to_global_median():
+    df = _two_sector_frame()
+    enc = fit_encoders(df)
+    q = _query_row(sector="a sector nobody trained on", society="a society nobody trained on")
+    X = build_features(q, enc)
+    assert X["sector_ppsf"].iloc[0] == pytest.approx(enc.sector_ppsf["__global__"])
+    assert X["society_ppsf"].iloc[0] == pytest.approx(enc.society_ppsf["__global__"])
+
+def test_known_society_is_not_overridden_by_the_sector_fallback():
+    df = _two_sector_frame()
+    enc = fit_encoders(df)
+    known_society = df["society"].iloc[0]
+    known_sector = df["sector"].iloc[0]
+    q = _query_row(sector=known_sector, society=known_society)
+    X = build_features(q, enc)
+    assert X["society_ppsf"].iloc[0] == pytest.approx(enc.society_ppsf[known_society])
 
 
 # ── balcony ─────────────────────────────────────────────────────────────

@@ -5,12 +5,13 @@ from sklearn.ensemble import ExtraTreesRegressor, GradientBoostingRegressor
 from sklearn.model_selection import KFold
 
 from homecast.features import build_features, fit_encoders, target
-from homecast.model import DEFAULT_PARAMS, MODELS, evaluate, predict_price, train_final
+from homecast.model import (DEFAULT_PARAMS, MODELS, SOCIETY_MASK_FRACTION,
+                            evaluate, predict_price, train_final)
 
 
 def test_evaluate_reports_model_and_baselines(clean_fixture):
     r = evaluate(clean_fixture, n_splits=3)
-    for k in ("model", "baseline_sector", "baseline_global"):
+    for k in ("model", "model_no_society", "baseline_sector", "baseline_global"):
         assert set(r[k]) == {"mae_lakh", "mape_pct", "r2"}
         assert r[k]["mae_lakh"] > 0
     assert len(r["residuals_log"]) == len(clean_fixture)
@@ -129,6 +130,100 @@ def test_evaluate_does_not_mutate_shared_registry_state(clean_fixture):
     evaluate(clean_fixture, n_splits=3)
     assert MODELS["default"].get_params() == before
     assert not hasattr(MODELS["default"], "estimators_")
+
+
+# ── robustness when the caller doesn't know the society ────────────────────
+# society_ppsf is a very strong feature (see the module docstring on
+# SOCIETY_MASK_FRACTION); a model trained without ever seeing a masked
+# society learns to lean on it far too hard, so real users who don't type in
+# their building name get a MUCH worse number than the reported CV metric --
+# the exact gap this masking fixes.
+
+@pytest.fixture()
+def society_signal_frame() -> pd.DataFrame:
+    """Sector explains most of the price; society adds real signal on top
+    (not noise) -- enough that an UNPROTECTED model would still lean on it
+    heavily, so this is a meaningful test of graceful degradation, not a
+    trivial one where withholding society costs nothing to begin with."""
+    rng = np.random.default_rng(17)
+    n = 900
+    sector_names = [f"sector {i}" for i in range(10)]
+    sectors = rng.choice(sector_names, n)
+    societies = rng.choice([f"society {i}" for i in range(60)], n)
+    sector_base = {s: rng.uniform(6000.0, 20000.0) for s in sector_names}
+    society_mult = {so: float(np.exp(rng.normal(0.0, 0.25)))
+                    for so in [f"society {i}" for i in range(60)]}
+    noise = rng.normal(0.0, 0.05, n)
+    ppsf = (np.array([sector_base[s] for s in sectors])
+            * np.array([society_mult[so] for so in societies])
+            * np.exp(noise))
+    area = rng.uniform(700.0, 2500.0, n)
+    return pd.DataFrame({
+        "sector": sectors, "society": societies, "property_type": "flat",
+        "price": area * ppsf / 1e7, "price_per_sqft": ppsf, "area": area,
+        "bedrooms": rng.integers(1, 6, n), "bathrooms": rng.integers(1, 6, n),
+        "balcony": rng.choice(["0", "1", "2", "3", "3+"], n),
+        "furnishing_type": rng.choice(
+            ["unfurnished", "semi-furnished", "furnished"], n),
+        "luxury_score": rng.uniform(0.0, 150.0, n),
+        "age_possession": "New Property",
+    })
+
+def _fold_gap_with_and_without_masking(df: pd.DataFrame, n_splits: int = 5) -> tuple[float, float]:
+    """Reproduce evaluate()'s fold loop twice on the identical folds/model --
+    once through the real (masked-training) code path, once through a local
+    unmasked variant -- and return (masked_gap, unmasked_gap), each the
+    MAPE-without-society minus MAPE-with-society. Only used to prove masking
+    is what closes the gap; never call this outside this test."""
+    masked = evaluate(df, n_splits=n_splits)
+    masked_gap = masked["model_no_society"]["mape_pct"] - masked["model"]["mape_pct"]
+
+    df = df.reset_index(drop=True)
+    import homecast.model as model_mod
+    oof, oof_no_soc = np.zeros(len(df)), np.zeros(len(df))
+    for tr_idx, te_idx in KFold(n_splits, shuffle=True, random_state=7).split(df):
+        tr, te = df.iloc[tr_idx], df.iloc[te_idx]
+        enc = fit_encoders(tr)
+        est = GradientBoostingRegressor(**DEFAULT_PARAMS)
+        est.fit(build_features(tr, enc), target(tr))         # <- no masking
+        Xte = build_features(te, enc)
+        oof[te_idx] = np.exp(est.predict(Xte))
+        oof_no_soc[te_idx] = np.exp(est.predict(model_mod._without_society(Xte)))
+    actual = df["price"].to_numpy(dtype=float)
+    mape_known = float(np.mean(np.abs(oof - actual) / actual) * 100)
+    mape_unknown = float(np.mean(np.abs(oof_no_soc - actual) / actual) * 100)
+    return masked_gap, mape_unknown - mape_known
+
+
+def test_model_degrades_gracefully_without_society(society_signal_frame):
+    """With masked training, withholding society at predict time must cost
+    meaningfully less than an equivalent model trained without masking, on
+    the identical folds/data -- proof the masking mechanism (not just luck on
+    one fixture) is what limits the damage."""
+    assert 0.0 < SOCIETY_MASK_FRACTION < 1.0, (
+        "masking must be genuinely partial -- 0 reproduces the brittle "
+        "society-dependent model, 1 reproduces drop-society-entirely")
+    masked_gap, unmasked_gap = _fold_gap_with_and_without_masking(society_signal_frame)
+    assert masked_gap >= -1e-9, "withholding real information should not IMPROVE the estimate"
+    assert masked_gap < unmasked_gap - 2.0, (
+        f"masked-training gap ({masked_gap:.2f}pp) is not meaningfully "
+        f"smaller than the unmasked gap ({unmasked_gap:.2f}pp) -- masking "
+        f"doesn't look like it's actually protecting predictions")
+
+def test_model_degrades_gracefully_without_society_on_real_data():
+    """The concrete numeric claim, on the actual committed Gurgaon dataset:
+    ~1.6pp with masking (this test), vs. ~15pp measured without it. A ceiling
+    of 3pp (the coordinator's own "~3pp" bound) fails hard on a regression to
+    the old behaviour while leaving headroom for legitimate retraining
+    variance."""
+    df = pd.read_csv("data/gurgaon/processed/listings_clean.csv")
+    r = evaluate(df, n_splits=5)
+    known, unknown = r["model"]["mape_pct"], r["model_no_society"]["mape_pct"]
+    gap = unknown - known
+    assert gap >= -1e-9
+    assert gap <= 3.0, (
+        f"MAPE without society ({unknown:.2f}%) is {gap:.2f}pp worse than "
+        f"with it ({known:.2f}%) on the real dataset -- expected ~1.6pp")
 
 
 # ── no target leakage in the cross-validation loop ───────────────────────────

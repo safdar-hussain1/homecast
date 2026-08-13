@@ -53,11 +53,16 @@ def _do_clean(city) -> None:
 
 
 def _fmt_metrics(m: dict) -> str:
-    rows = [("HomeCast model", m["model"]), ("Sector-median baseline", m["baseline_sector"]),
-            ("Global-median baseline", m["baseline_global"])]
-    out = [f"{'':26s} {'MAE (lakh)':>10s} {'MAPE %':>8s} {'R2':>6s}"]
+    rows = [("HomeCast model", m["model"])]
+    if "model_no_society" in m:
+        # honest second number: what a caller who can't supply a society
+        # actually gets (see homecast.model.SOCIETY_MASK_FRACTION)
+        rows.append(("  ...without a society given", m["model_no_society"]))
+    rows += [("Sector-median baseline", m["baseline_sector"]),
+             ("Global-median baseline", m["baseline_global"])]
+    out = [f"{'':28s} {'MAE (lakh)':>10s} {'MAPE %':>8s} {'R2':>6s}"]
     for name, r in rows:
-        out.append(f"{name:26s} {r['mae_lakh']:10.1f} {r['mape_pct']:8.1f} {r['r2']:6.3f}")
+        out.append(f"{name:28s} {r['mae_lakh']:10.1f} {r['mape_pct']:8.1f} {r['r2']:6.3f}")
     return "\n".join(out)
 
 
@@ -85,7 +90,7 @@ def main(argv=None) -> int:
     pr.add_argument("--age", default=None)
     pr.add_argument("--society", default=None,
                     help="optional; unrecognised names fall back to the "
-                         "city-wide median instead of erroring")
+                         "sector's rate instead of erroring")
     pr.add_argument("--balcony", default=None)
     a = p.parse_args(argv)
 
@@ -107,8 +112,9 @@ def main(argv=None) -> int:
                 print(f"note: dashboard export skipped ({exc})")
             (city.models_dir / "metrics.json").write_text(
                 json.dumps({k: fitted.metrics[k] for k in
-                            ("model", "baseline_sector", "baseline_global",
-                             "n", "n_splits", "params", "model_name")}, indent=2))
+                            ("model", "model_no_society", "baseline_sector",
+                             "baseline_global", "n", "n_splits", "params",
+                             "model_name")}, indent=2))
             print(_fmt_metrics(fitted.metrics))
             print(f"Artifacts -> {city.models_dir}")
         elif a.cmd == "evaluate":

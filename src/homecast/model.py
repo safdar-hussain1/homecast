@@ -27,6 +27,24 @@ DEFAULT_PARAMS = {"n_estimators": 500, "max_depth": 5, "learning_rate": 0.05,
                   "subsample": 0.9, "random_state": 7}
 ACCURATE_PARAMS = {"n_estimators": 100, "random_state": 7, "n_jobs": -1}
 
+# society_ppsf is a very strong feature (see feature_importances) -- strong
+# enough that a model trained only on rows where it's informative leans on it
+# far more than is safe for a real user, most of whom won't type in their
+# building name. Without this, the model silently assumes the caller always
+# knows their society; a user who doesn't got MAPE in the 30s, worse than the
+# pre-Phase-2 model this whole upgrade was meant to beat. Masking a fraction
+# of TRAINING rows to their sector-fallback value teaches the model to use
+# area/sector/etc. instead of over-relying on society, so it degrades
+# gracefully (a few points, not ~15) when the real prediction path can't
+# supply one either. This is a robustness technique, not a hack -- do not
+# "optimise" it away, and do not raise it toward 1.0 (that would just
+# reproduce the old drop-society-entirely behaviour) or drop it to 0 (that
+# reproduces the brittle, society-dependent model this fixes).
+SOCIETY_MASK_FRACTION = 0.5
+# Seed for the masking RNG, independent of KFold's random_state=7 shuffle but
+# deliberately the same value, so a full run is reproducible end to end.
+_SOCIETY_MASK_SEED = 7
+
 # Named model registry. Each entry is a template estimator; every fold/final
 # fit clones it fresh so no state leaks between folds or between cities.
 MODELS: dict[str, BaseEstimator] = {
@@ -66,6 +84,26 @@ def _metrics(actual_cr: np.ndarray, pred_cr: np.ndarray) -> dict:
     }
 
 
+def _mask_society(X: pd.DataFrame, rng: np.random.Generator) -> pd.DataFrame:
+    """Overwrite society_ppsf with the row's own sector_ppsf for a random
+    ~SOCIETY_MASK_FRACTION of rows, so training sees the same "I don't know
+    the society" situation a real caller is often in. Only ever applied to
+    TRAINING features -- see the module docstring on SOCIETY_MASK_FRACTION."""
+    X = X.copy()
+    masked = rng.random(len(X)) < SOCIETY_MASK_FRACTION
+    X.loc[masked, "society_ppsf"] = X.loc[masked, "sector_ppsf"]
+    return X
+
+
+def _without_society(X: pd.DataFrame) -> pd.DataFrame:
+    """Simulate a caller who can't supply a society at predict time: replace
+    every row's society_ppsf with its own sector_ppsf (the same fallback
+    build_features already applies for an unrecognised/omitted society)."""
+    X = X.copy()
+    X["society_ppsf"] = X["sector_ppsf"]
+    return X
+
+
 def _baseline_pred(train: pd.DataFrame, test: pd.DataFrame, by_sector: bool) -> np.ndarray:
     """Price = median Rs/sqft (global or sector) x area, in crore."""
     g = float(train["price_per_sqft"].median())
@@ -80,13 +118,21 @@ def _baseline_pred(train: pd.DataFrame, test: pd.DataFrame, by_sector: bool) -> 
 def evaluate(df: pd.DataFrame, model: str = "default", n_splits: int = 5) -> dict:
     df = df.reset_index(drop=True)
     _validate_prices(df)
-    oof = {k: np.zeros(len(df)) for k in ("model", "baseline_sector", "baseline_global")}
+    oof = {k: np.zeros(len(df)) for k in
+           ("model", "model_no_society", "baseline_sector", "baseline_global")}
+    mask_rng = np.random.default_rng(_SOCIETY_MASK_SEED)
     for tr_idx, te_idx in KFold(n_splits, shuffle=True, random_state=7).split(df):
         tr, te = df.iloc[tr_idx], df.iloc[te_idx]
         enc = fit_encoders(tr)                           # fold-local: no leakage
+        Xtr = _mask_society(build_features(tr, enc), mask_rng)
         est = _make_estimator(model)
-        est.fit(build_features(tr, enc), target(tr))
-        oof["model"][te_idx] = np.exp(est.predict(build_features(te, enc)))
+        est.fit(Xtr, target(tr))
+        Xte = build_features(te, enc)
+        oof["model"][te_idx] = np.exp(est.predict(Xte))
+        # same out-of-fold rows, same trained (masking-robust) estimator, but
+        # society withheld at predict time -- the number a real user who
+        # doesn't know their building actually gets.
+        oof["model_no_society"][te_idx] = np.exp(est.predict(_without_society(Xte)))
         oof["baseline_sector"][te_idx] = _baseline_pred(tr, te, by_sector=True)
         oof["baseline_global"][te_idx] = _baseline_pred(tr, te, by_sector=False)
     actual = df["price"].to_numpy(dtype=float)
@@ -112,7 +158,8 @@ def train_final(df: pd.DataFrame, model: str = "default") -> FittedModel:
     metrics = evaluate(df, model=model)
     enc = fit_encoders(df)
     est = _make_estimator(model)
-    est.fit(build_features(df, enc), target(df))
+    Xfull = _mask_society(build_features(df, enc), np.random.default_rng(_SOCIETY_MASK_SEED))
+    est.fit(Xfull, target(df))
     res = np.asarray(metrics["residuals_log"])
     band = (float(np.quantile(res, 0.10)), float(np.quantile(res, 0.90)))
     ranges = {c: [float(df[c].min()), float(df[c].max())]

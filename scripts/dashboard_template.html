@@ -763,7 +763,6 @@ const SECTOR_MEAN = DATA.encodings.sector_ppsf_mean;
 const SECTOR_STD = DATA.encodings.sector_ppsf_std;
 const SECTOR_COUNT = DATA.encodings.sector_count;
 const SOCIETY_PPSF = DATA.encodings.society_ppsf;
-const GLOBAL_SOCIETY_PPSF = SOCIETY_PPSF.__global__;
 const SOCIETIES = Object.keys(SOCIETY_PPSF).filter(k => k !== '__global__').sort();
 const SECTORS = Object.keys(SP).filter(k => k !== '__global__').sort(cmpSector);
 const AREA_MIN = DATA.ranges.area[0], AREA_MAX = DATA.ranges.area[1];
@@ -778,6 +777,7 @@ function cmpSector(a, b){
 }
 
 function featureRow(q){
+  const sectorPpsf = (q.sector in SP) ? SP[q.sector] : GLOBAL_PPSF;
   const v = {
     area:             q.area,
     bedrooms:         q.bedrooms,
@@ -786,15 +786,20 @@ function featureRow(q){
     furnishing_code:  DATA.encodings.furnishing[q.furnishing],
     luxury_score:     q.luxury,
     age_code:         (q.age && q.age in DATA.encodings.age) ? DATA.encodings.age[q.age] : -1,
-    sector_ppsf:      (q.sector in SP) ? SP[q.sector] : GLOBAL_PPSF,
+    sector_ppsf:      sectorPpsf,
     sector_ppsf_mean: (q.sector in SECTOR_MEAN) ? SECTOR_MEAN[q.sector] : SECTOR_MEAN.__global__,
     sector_ppsf_std:  (q.sector in SECTOR_STD) ? SECTOR_STD[q.sector] : SECTOR_STD.__global__,
     sector_count:     (q.sector in SECTOR_COUNT) ? SECTOR_COUNT[q.sector] : 0,
-    // Both are optional inputs (a caller who doesn't know the society or
-    // balcony count leaves them unset); an unset/unknown value falls back
-    // exactly like an unseen category does during training. Mirrors
-    // query_to_row()/estimate() in valuation.py.
-    society_ppsf:     (q.society && q.society in SOCIETY_PPSF) ? SOCIETY_PPSF[q.society] : GLOBAL_SOCIETY_PPSF,
+    // Balcony is optional (a caller who doesn't know the count leaves it
+    // unset -> the documented missing code -1, mirroring valuation.py).
+    // Society's fallback chain mirrors build_features() in features.py:
+    // known society -> its own rate; unknown/omitted society -> THIS
+    // query's sector rate (sectorPpsf, resolved above -- itself already
+    // falls back to the global median for an unseen sector), never a flat
+    // city-wide constant. The model was trained to expect exactly this
+    // fallback (see homecast.model.SOCIETY_MASK_FRACTION) -- do not revert
+    // this to a plain global-median fallback.
+    society_ppsf:     (q.society && q.society in SOCIETY_PPSF) ? SOCIETY_PPSF[q.society] : sectorPpsf,
     balcony_code:     (q.balcony && q.balcony in DATA.encodings.balcony) ? DATA.encodings.balcony[q.balcony] : -1
   };
   return DATA.feature_order.map(k => v[k]);

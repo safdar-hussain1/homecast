@@ -53,7 +53,8 @@ def export_city(fitted: FittedModel, df: pd.DataFrame, city: City) -> dict:
     sample = (df[["sector", "property_type", "bedrooms", "area", "price"]]
               .sample(n=min(400, len(df)), random_state=7))
     metrics = {k: fitted.metrics[k] for k in
-               ("model", "baseline_sector", "baseline_global", "n", "n_splits")}
+               ("model", "model_no_society", "baseline_sector", "baseline_global",
+                "n", "n_splits")}
     return {
         "city": city.display,
         "generated_n": int(len(df)),

@@ -87,6 +87,23 @@ def test_encodings_carry_balcony_codes(payload):
     assert p["encodings"]["balcony"] == {"0": 0, "1": 1, "2": 2, "3": 3, "3+": 4}
 
 
+# ── both the "society known" and "society unknown" metrics ship ───────────
+
+def test_metrics_carry_both_society_known_and_unknown_numbers(payload):
+    """The dashboard/docs must be able to state both honestly -- see
+    homecast.model.SOCIETY_MASK_FRACTION."""
+    fitted, p = payload
+    m = p["metrics"]
+    assert set(m["model_no_society"]) == {"mae_lakh", "mape_pct", "r2"}
+    # exactly the same numbers train_final()/evaluate() computed -- the
+    # payload must not recompute or otherwise drift from them
+    assert m["model_no_society"] == fitted.metrics["model_no_society"]
+    # (directional "withholding society can't help" is asserted properly in
+    # test_model.py against fixtures with real society signal -- clean_fixture
+    # here has a single constant society, so it's noise-dominated and not a
+    # fair place to assert that direction)
+
+
 # ── the accurate model must never be exported to the browser ──────────────
 
 def test_accurate_model_export_raises_a_clear_error(clean_fixture):

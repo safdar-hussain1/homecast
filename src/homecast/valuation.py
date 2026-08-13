@@ -21,12 +21,14 @@ class Query:
     luxury_score: int
     age: str | None = None
     # Both optional: a caller who doesn't know the society or balcony count
-    # simply omits it, and the model falls back exactly as it does for an
-    # unseen category during training (society -> global median TE, balcony
-    # -> the documented missing code -1). society_ppsf is now the single
-    # strongest feature the model has (see fit_encoders), so supplying a
-    # real society meaningfully improves the estimate -- an omitted one is
-    # not an error, just a less-informed prediction.
+    # simply omits it. society falls back to THIS listing's sector rate (a
+    # building we can't identify is still in a known sector -- see
+    # build_features), only reaching the global median if the sector is also
+    # unknown; balcony falls back to the documented missing code -1.
+    # society_ppsf is a very strong feature (see fit_encoders), so the model
+    # is trained with it randomly masked to the sector rate on part of the
+    # training data (homecast.model.SOCIETY_MASK_FRACTION) specifically so
+    # an omitted society degrades gracefully instead of badly mispricing.
     society: str | None = None
     balcony: str | None = None
 
@@ -76,10 +78,9 @@ def estimate(fitted: FittedModel, q: Query) -> dict:
                          f"{', '.join(BALCONY_CODES)}")
     # Unlike sector, society is not rejected when unrecognised: it is an
     # optional field, and a name the model never trained on legitimately
-    # falls back to the global median exactly like an unseen sector would
-    # inside a CV fold (note "independent" -- ~13% of listings, no named
-    # society -- is itself a real, well-populated category with its own
-    # learned encoding, not a fallback).
+    # falls back to this query's own sector rate (note "independent" --
+    # ~13% of listings, no named society -- is itself a real, well-populated
+    # category with its own learned encoding, not a fallback).
     _check_range(fitted, "area", q.area, "sq.ft.")
     _check_range(fitted, "bedrooms", q.bedrooms)
     _check_range(fitted, "bathrooms", q.bathrooms)

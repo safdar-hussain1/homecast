@@ -54,6 +54,10 @@ def build(city: str = "gurgaon",
                     "society_ppsf"):
         if enc_key not in payload["encodings"]:
             raise ValueError(f"{model_path} encodings is missing the '{enc_key}' key")
+    for metric_key in ("model", "model_no_society", "baseline_sector",
+                       "baseline_global", "n", "n_splits"):
+        if metric_key not in payload["metrics"]:
+            raise ValueError(f"{model_path} metrics is missing the '{metric_key}' key")
 
     data = json.dumps(payload, allow_nan=False, separators=(",", ":"))
     if PLACEHOLDER in data:
