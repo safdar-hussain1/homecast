@@ -203,6 +203,26 @@ def test_non_positive_price_is_rejected(tmp_path):
         ingest_city(raw, cfg)
 
 
+# --- Amravati, Maharashtra contamination guard (Task 7) -----------------
+
+def test_ingest_warns_on_maharashtra_localities_for_amaravathi_ap(tmp_path):
+    ap_config = GOOD_CONFIG.replace('city_key = "testcity"', 'city_key = "amaravathi_ap"')
+    raw_df = _good_raw_df(n=6, locality=["Thullur"] * 3 + ["Amravati, Maharashtra"] * 3)
+    raw = _write_csv(tmp_path / "raw.csv", raw_df)
+    cfg = _write_config(tmp_path / "config.toml", ap_config)
+    df, log = ingest_city(raw, cfg)
+    assert any("Maharashtra" in line for line in log)
+
+def test_ingest_silent_for_other_cities_even_with_odd_localities(tmp_path):
+    """The guard is specific to amaravathi_ap -- a Gurgaon-style config with
+    a locality that happens to contain 'maharashtra' must not warn."""
+    raw_df = _good_raw_df(n=3, locality=["some place in maharashtra"] * 3)
+    raw = _write_csv(tmp_path / "raw.csv", raw_df)
+    cfg = _write_config(tmp_path / "config.toml", GOOD_CONFIG)  # city_key = testcity
+    df, log = ingest_city(raw, cfg)
+    assert not any("Maharashtra" in line for line in log)
+
+
 # --- CLI wiring -------------------------------------------------------
 
 def test_cli_ingest_writes_processed_csv(tmp_path, monkeypatch, capsys):

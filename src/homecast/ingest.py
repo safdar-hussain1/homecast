@@ -24,6 +24,8 @@ from pathlib import Path
 import pandas as pd
 
 from homecast.cleaning import drop_duplicates, drop_unpriced, trim_outliers
+from homecast.reference import CITY_KEY as _AMARAVATHI_AP_KEY
+from homecast.reference import guard_maharashtra_contamination
 
 AREA_UNITS = {"sqft", "sqm", "sqyd"}
 AREA_BASES = {"carpet", "builtup", "superbuiltup"}
@@ -145,6 +147,23 @@ def _plausibility_check(df: pd.DataFrame, cfg: IngestConfig) -> None:
             f"~9x or ~10.8x respectively).")
 
 
+def _maharashtra_contamination_log(df: pd.DataFrame, cfg: IngestConfig) -> list[str]:
+    """When ingesting for Amaravathi, AP specifically, warn (do not reject --
+    this is a data-quality signal, not necessarily a fatal error) if any
+    locality string looks like it names Amravati, MAHARASHTRA instead: a
+    real, unrelated, much larger city with a near-identical name."""
+    if cfg.city_key != _AMARAVATHI_AP_KEY:
+        return []
+    flagged = [loc for loc in df["sector"].dropna().unique()
+              if guard_maharashtra_contamination(str(loc))]
+    if not flagged:
+        return []
+    examples = ", ".join(map(str, flagged[:3]))
+    return [f"WARNING: {len(flagged)} distinct locality value(s) look like "
+           f"Amravati, Maharashtra rather than Amaravathi, AP (e.g. "
+           f"{examples}) -- verify before trusting these rows"]
+
+
 def ingest_city(raw_path: Path, config_path: Path) -> tuple[pd.DataFrame, list[str]]:
     """Load a third-party CSV through its ingestion config and return
     (cleaned DataFrame in HomeCast's schema, step log) -- or raise loudly
@@ -172,4 +191,5 @@ def ingest_city(raw_path: Path, config_path: Path) -> tuple[pd.DataFrame, list[s
     # compares price_per_sqft across cities must be able to see the basis
     # without going back to this city's ingestion config.
     df["area_basis"] = cfg.area_basis
+    log.extend(_maharashtra_contamination_log(df, cfg))
     return df, log

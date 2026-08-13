@@ -1,0 +1,75 @@
+# EXAMPLE / PLACEHOLDER rate table for the Amaravathi reference calculator
+# (homecast.reference). Every number below is FAKE and made up for this
+# example -- do not use these figures for any real estimate.
+#
+# Amaravathi, Andhra Pradesh has single-digit live listings and no usable
+# listings dataset (see the Phase 2 research note), so HomeCast cannot train
+# a model there. Instead it looks up a manually-maintained rate table like
+# this one, sourced from:
+#
+#   - APCRDA zone rates -- the Andhra Pradesh Capital Region Development
+#     Authority (crda.ap.gov.in) publishes master-plan and zoning documents
+#     with land-rate figures per zone. Not a bulk-downloadable dataset;
+#     figures must be read off the published PDFs by hand.
+#   - IGRS AP registration values -- the state's property-registration
+#     portal (registration.ap.gov.in) publishes circle/registration rates
+#     used as the floor value for stamp duty. Also not bulk-downloadable;
+#     look up the relevant sub-registrar office's notified rate.
+#   - Vijayawada / Guntur comparables -- with no Amaravathi-specific
+#     transaction data, listings from these two nearby, larger markets
+#     (25-40 km away) can be used as an explicitly labelled REGIONAL PROXY,
+#     never presented as Amaravathi ground truth.
+#
+# The real, currently-maintained table lives at private/amaravathi/rates.toml
+# (gitignored -- see src/homecast/private.py and .gitignore). This file is
+# the public, structurally-fake stand-in so the calculator's code path,
+# schema and tests don't depend on real data being present.
+#
+# Schema: each [[rate]] entry is ONE source's quote for one zone and
+# property_type. A zone/property_type combination may have more than one
+# entry (e.g. an APCRDA figure and a Vijayawada/Guntur proxy figure) --
+# homecast.reference.estimate() shows every entry with its own source and
+# date, and reports the overall span across all of them as the output
+# range. It never invents a statistical margin.
+
+last_updated = "2026-01-01"
+
+[[rate]]
+zone = "Seed Capital Zone (Thullur mandal)"
+property_type = "flat"
+rate_low_per_sqft = 4200      # FAKE -- placeholder only
+rate_high_per_sqft = 4900     # FAKE -- placeholder only
+source = "APCRDA zone rate schedule (EXAMPLE, not real)"
+source_date = "2026-01-01"
+
+[[rate]]
+zone = "Seed Capital Zone (Thullur mandal)"
+property_type = "flat"
+rate_low_per_sqft = 3800      # FAKE -- placeholder only
+rate_high_per_sqft = 5300     # FAKE -- placeholder only
+source = "Vijayawada/Guntur comparable listings (EXAMPLE, regional proxy, not real)"
+source_date = "2025-09-15"
+
+[[rate]]
+zone = "Seed Capital Zone (Thullur mandal)"
+property_type = "house"
+rate_low_per_sqft = 4800      # FAKE -- placeholder only
+rate_high_per_sqft = 5600     # FAKE -- placeholder only
+source = "IGRS AP registration value (EXAMPLE, not real)"
+source_date = "2026-01-01"
+
+[[rate]]
+zone = "Uddandarayunipalem"
+property_type = "flat"
+rate_low_per_sqft = 3300      # FAKE -- placeholder only
+rate_high_per_sqft = 3900     # FAKE -- placeholder only
+source = "APCRDA zone rate schedule (EXAMPLE, not real)"
+source_date = "2026-01-01"
+
+[[rate]]
+zone = "Uddandarayunipalem"
+property_type = "house"
+rate_low_per_sqft = 2900      # FAKE -- placeholder only
+rate_high_per_sqft = 3400     # FAKE -- placeholder only
+source = "IGRS AP registration value (EXAMPLE, not real)"
+source_date = "2025-11-01"
