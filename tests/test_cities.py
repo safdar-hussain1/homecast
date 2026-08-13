@@ -1,5 +1,5 @@
 import pytest
-from homecast.cities import CITIES, get_city
+from homecast.cities import get_city
 
 def test_gurgaon_registered():
     c = get_city("gurgaon")

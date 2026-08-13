@@ -103,8 +103,9 @@ def main(argv=None) -> int:
                          city.models_dir / "model.json")
             print(f"Wrote {city.models_dir / 'model.json'}")
         elif a.cmd == "predict":
-            # joblib is safe here: model.joblib is only ever produced by this
-            # machine's own `homecast train` run (gitignored, never downloaded).
+            # _load_fitted unpickles model.joblib. That is safe here because
+            # the file is only ever produced by this machine's own
+            # `homecast train` run (gitignored, never downloaded).
             fitted = _load_fitted(city)
             q = Query(sector=a.sector, property_type=a.ptype, bedrooms=a.bhk,
                       bathrooms=a.bath, area=a.area, furnishing=a.furnishing,

@@ -6,7 +6,11 @@ block; this script drops the minified `model.json` in its place and writes the
 result to `docs/index.html`. Nothing else is templated, so the page in `docs/`
 is always a byte-for-byte function of the template plus the payload.
 
-    PYTHONPATH=src python scripts/build_dashboard.py [--city gurgaon]
+    python scripts/build_dashboard.py [--city gurgaon]
+
+It reads only files, so it needs no PYTHONPATH and no installed package —
+`homecast train` (or `homecast export-dashboard`) must have written
+`models/<city>/model.json` first.
 """
 from __future__ import annotations
 

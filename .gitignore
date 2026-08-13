@@ -16,6 +16,7 @@ venv/
 
 # Build and testing
 .pytest_cache/
+.superpowers/
 src/*.egg-info/
 __pycache__/
 

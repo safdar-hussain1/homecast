@@ -1,5 +1,4 @@
 import numpy as np
-import pandas as pd
 import pytest
 
 from homecast.features import (FEATURE_COLUMNS, build_features,
@@ -39,8 +38,8 @@ def test_missing_age_coded_minus_one(clean_fixture):
     m = sector_encoding(clean_fixture)
     X = build_features(clean_fixture, m)
     missing = clean_fixture["age_possession"].isna()
-    if missing.any():
-        assert (X.loc[missing, "age_code"] == -1).all()
+    assert missing.any(), "fixture has no missing ages — the test would self-void"
+    assert (X.loc[missing, "age_code"] == -1).all()
 
 def test_sector_encoding_uses_only_given_rows(clean_fixture):
     """Dropping some of a sector's rows must change its encoding —
