@@ -11,15 +11,19 @@ data — see [Limitations](#limitations).
 
 - Source: `data/gurgaon/raw/gurgaon_properties.csv`, 3,803 residential listings
   (flats and independent houses / builder floors) collected from a public
-  Indian property-listing portal at one point in time. **Which portal is not
-  recorded anywhere in this repository, so it is not named here — a guess
-  would be worse than the gap.** The column set (`areaWithType`,
-  `agePossession`, `luxury_score`) is characteristic of a listings scrape, but
-  nothing in the file, its metadata, or the pipeline identifies the site or
-  the collection date.
+  Indian property-listing portal at one point in time. The file's schema and
+  row count match, column for column (23/23, including the space-separated
+  room-flag names), `gurgaon_properties_cleaned_v2.csv` from the widely
+  mirrored CampusX DSMP capstone dataset
+  (github.com/campusx-official/dsmp-capstone-project), whose secondary
+  sources consistently describe it as scraped from 99acres.com around 2023.
+  That attribution rests on the schema match and secondary sources, not on a
+  first-party statement — this card cannot independently confirm the original
+  scrape method or date.
   There is no listing date column and no repeat observations of the same
   property over time — this is a cross-sectional snapshot, not a time series.
-  The file was first committed to this repository on **2025-08-23**; every
+  The file was first committed to this repository on **2025-08-23**, and the
+  schema-matched upstream dataset dates the scrape to around **2023**; every
   number in this card reflects that market, not today's, and there is
   currently no mechanism to detect or correct for drift since then. See
   [Limitations](#limitations).

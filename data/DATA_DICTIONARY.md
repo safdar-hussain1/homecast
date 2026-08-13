@@ -15,11 +15,13 @@ Two files, same listings, different stages of the pipeline:
 
 The snapshot is a scrape of residential listings from a public Indian
 property-listing portal, redistributed in this repository so that every
-published number can be reproduced end to end. **Nothing in the file or in
-this repository records which portal it was taken from, or when** — no source
-URL, no collection date, no metadata block — so no specific site is named
-here. Naming one on the strength of the column layout alone would be a guess
-dressed up as a fact.
+published number can be reproduced end to end. The file matches, column for
+column and in row count, `gurgaon_properties_cleaned_v2.csv` from the widely
+mirrored CampusX DSMP capstone dataset
+(github.com/campusx-official/dsmp-capstone-project), which secondary sources
+describe as scraped from 99acres.com around 2023. The file itself carries no
+source URL, collection date, or metadata block, so that attribution rests on
+the schema match rather than a first-party record.
 
 The repository's `LICENSE` (MIT) covers the **code only**. The CSV is
 third-party listing content and carries no licence grant from this project.
