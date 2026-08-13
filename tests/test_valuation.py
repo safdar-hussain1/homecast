@@ -86,8 +86,9 @@ def test_out_of_range_numeric_inputs_rejected(fitted, field, value):
 # ── optional society / balcony inputs ──────────────────────────────────────
 
 def test_society_and_balcony_are_optional(fitted):
-    """Omitting both must still produce a normal estimate (fallback to the
-    global median / missing code), not an error."""
+    """Omitting both must still produce a normal estimate (society falls
+    back to the listing's own sector rate, balcony to the missing code),
+    not an error."""
     e = estimate(fitted, q())
     assert e["price_cr"] > 0
 
@@ -141,5 +142,5 @@ def test_known_society_changes_the_prediction(society_signal_fixture):
     unspecified = estimate(f, Query(**base))["price_cr"]
     assert high > low
     # naming the pricier society must lift the estimate above the
-    # unspecified (global-median-fallback) default
+    # unspecified (sector-rate-fallback) default
     assert high > unspecified

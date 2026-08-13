@@ -129,7 +129,9 @@ flattering nor the unflattering number is ever shown alone.
 
 `sklearn.ensemble.GradientBoostingRegressor`, with HomeCast's own project
 defaults (`DEFAULT_PARAMS` in `src/homecast/model.py` — not scikit-learn's
-library defaults), chosen up front and never tuned against the CV results:
+library defaults). The Phase 2 values below were specified in the Phase 2
+plan before this evaluation ran and have not been changed since based on
+the CV results this card reports — they were not tuned against these numbers:
 
 ```
 n_estimators   = 500
@@ -193,9 +195,10 @@ global baseline MAE = 114.936236... lakh, MAPE = 38.078945...%, R² =
 
 Both baselines are the pricing rules an agent uses without a model: multiply
 a median ₹/sqft figure (global, or specific to the listing's sector) by the
-listing's area. The model beats the sector-median rule by roughly a third on
-MAE even in its harder, society-withheld configuration, and the sector-median
-rule in turn beats the global-median rule — the expected ordering holds.
+listing's area. The model beats the sector-median rule by roughly 30%
+(29.0%) on MAE even in its harder, society-withheld configuration — and by
+roughly a third (34.6%) with a society given — and the sector-median rule in
+turn beats the global-median rule — the expected ordering holds.
 **Neither row above is quoted alone anywhere in this project** — which one
 applies depends on whether the caller supplied a society, and both are
 carried through `metrics.json`, the dashboard payload, and the CLI's printed

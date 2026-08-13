@@ -15,10 +15,11 @@ entirely in the visitor's browser.
   bathrooms, area, furnishing, and luxury score, and returns a point estimate
   in ₹ crore plus an 80% uncertainty band.
 - **CLI** — one tool covers the full pipeline: `clean` (raw listings →
-  cleaned dataset), `train` (fit the model, write metrics + a dashboard
-  export), `evaluate` (cross-validated metrics only, no artifacts written),
-  `predict` (price a single property), and `export-dashboard` (regenerate the
-  browser-side model file from an already-trained model).
+  cleaned dataset), `ingest` (config-driven ingestion of a third-party CSV,
+  with fail-fast unit checks), `train` (fit the model, write metrics + a
+  dashboard export), `evaluate` (cross-validated metrics only, no artifacts
+  written), `predict` (price a single property), and `export-dashboard`
+  (regenerate the browser-side model file from an already-trained model).
 - **Per-city pipeline** — every city is a `City` entry in a small registry
   (`src/homecast/cities.py`) pointing at its raw CSV, cleaned CSV, and model
   directory, plus a cleaning function registered in `PIPELINES`. Gurgaon is
@@ -115,8 +116,9 @@ model, not one — see [Society masking](#society-masking):
 
 The sector-median ₹/sqft rule is the naive baseline an agent uses without a
 model: median ₹/sqft for the listing's sector, times the property's area.
-The model beats that baseline by roughly a third on MAE even in its harder,
-society-unknown configuration.
+The model beats that baseline by roughly 30% on MAE (29.0%) even in its
+harder, society-unknown configuration — and by roughly a third (34.6%) when
+a society is given.
 
 > **Two things every estimate on this page should be read with:**
 >
@@ -146,7 +148,9 @@ structure in Methodology.
 
 Model parameters: `n_estimators=500, max_depth=5, learning_rate=0.05,
 subsample=0.9, random_state=7`. These are HomeCast's own default parameters
-(not scikit-learn's), chosen up front and never tuned against the CV results.
+(not scikit-learn's). The Phase 2 values above were specified in the Phase 2
+plan *before* this evaluation ran, and have not been changed since based on
+the CV results this page reports — they were not tuned against these numbers.
 
 ### Society masking
 
@@ -213,7 +217,7 @@ computed on rows the model never trained on for that prediction. Feature
 importances from the trained model (society-given configuration): `area`
 0.576, `society_ppsf` 0.148, `bathrooms` 0.080, `sector_ppsf` 0.055,
 `is_house` 0.048, `sector_ppsf_mean` 0.035 (remaining seven features share
-0.058). These are exported into `models/gurgaon/model.json` as
+0.059). These are exported into `models/gurgaon/model.json` as
 `feature_importances`, and the dashboard reads them from there rather than
 keeping its own copy.
 
