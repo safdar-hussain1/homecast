@@ -1,11 +1,11 @@
 import numpy as np
 import pandas as pd
 import pytest
-from sklearn.ensemble import GradientBoostingRegressor
+from sklearn.ensemble import ExtraTreesRegressor, GradientBoostingRegressor
 from sklearn.model_selection import KFold
 
 from homecast.features import build_features, fit_encoders, target
-from homecast.model import DEFAULT_PARAMS, evaluate, predict_price, train_final
+from homecast.model import DEFAULT_PARAMS, MODELS, evaluate, predict_price, train_final
 
 
 def test_evaluate_reports_model_and_baselines(clean_fixture):
@@ -65,6 +65,70 @@ def test_constant_price_r2_rejected(clean_fixture):
     flat["price"] = 1.0
     with pytest.raises(ValueError, match="identical"):
         evaluate(flat, n_splits=3)
+
+
+# ── model registry ─────────────────────────────────────────────────────────
+
+def test_models_registry_has_default_and_accurate():
+    assert set(MODELS) == {"default", "accurate"}
+    assert isinstance(MODELS["default"], GradientBoostingRegressor)
+    assert isinstance(MODELS["accurate"], ExtraTreesRegressor)
+
+def test_unknown_model_name_rejected(clean_fixture):
+    with pytest.raises(ValueError, match="Unknown model"):
+        evaluate(clean_fixture, model="fastest", n_splits=3)
+
+@pytest.fixture()
+def signal_frame() -> pd.DataFrame:
+    """Big enough, with real signal beyond sector (area and luxury both move
+    price), that a fitted model has something to learn past the naive
+    per-sector median rule -- unlike the tiny 41-row `clean_fixture`, whose
+    price-per-sqft is pure noise independent of sector by construction and so
+    isn't a fair test of "does the model beat the baseline"."""
+    rng = np.random.default_rng(5)
+    n = 400
+    sector_names = [f"sector {i}" for i in range(8)]
+    sectors = rng.choice(sector_names, n)
+    area = rng.uniform(600.0, 3000.0, n)
+    luxury = rng.uniform(0.0, 150.0, n)
+    base_ppsf = {s: rng.uniform(5000.0, 20000.0) for s in sector_names}
+    noise = rng.normal(0.0, 0.05, n)
+    ppsf = np.array([base_ppsf[s] for s in sectors]) * (1 + luxury / 500) * np.exp(noise)
+    return pd.DataFrame({
+        "sector": sectors,
+        "society": [f"society {i % 40}" for i in range(n)],
+        "property_type": rng.choice(["flat", "house"], n, p=[0.8, 0.2]),
+        "price": area * ppsf / 1e7,
+        "price_per_sqft": ppsf,
+        "area": area,
+        "bedrooms": rng.integers(1, 6, n),
+        "bathrooms": rng.integers(1, 6, n),
+        "balcony": rng.choice(["0", "1", "2", "3", "3+"], n),
+        "furnishing_type": rng.choice(
+            ["unfurnished", "semi-furnished", "furnished"], n),
+        "luxury_score": luxury,
+        "age_possession": "New Property",
+    })
+
+def test_default_and_accurate_both_beat_sector_baseline(signal_frame):
+    for name in ("default", "accurate"):
+        r = evaluate(signal_frame, model=name, n_splits=5)
+        assert r["model"]["mae_lakh"] < r["baseline_sector"]["mae_lakh"], name
+
+def test_train_final_accurate_model_fits_and_predicts(clean_fixture):
+    f = train_final(clean_fixture, model="accurate")
+    assert isinstance(f.model, ExtraTreesRegressor)
+    X = build_features(clean_fixture, f.encoders)
+    pred = predict_price(f, X)
+    assert (pred > 0).all()
+
+def test_evaluate_does_not_mutate_shared_registry_state(clean_fixture):
+    """Each fold/final fit must clone its estimator template -- otherwise
+    successive evaluate() calls would silently reuse a stale fitted model."""
+    before = MODELS["default"].get_params()
+    evaluate(clean_fixture, n_splits=3)
+    assert MODELS["default"].get_params() == before
+    assert not hasattr(MODELS["default"], "estimators_")
 
 
 # ── no target leakage in the cross-validation loop ───────────────────────────

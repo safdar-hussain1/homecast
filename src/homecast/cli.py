@@ -12,6 +12,7 @@ import joblib
 from homecast.cities import get_city
 from homecast.cleaning import clean_city
 from homecast.export import export_city, write_export
+from homecast.model import MODELS
 from homecast.model import evaluate as evaluate_cv
 from homecast.model import train_final
 from homecast.valuation import Query, estimate
@@ -64,8 +65,14 @@ def main(argv=None) -> int:
     p = argparse.ArgumentParser(prog="homecast",
                                 description="Residential property price intelligence")
     sub = p.add_subparsers(dest="cmd", required=True)
-    for name in ("clean", "train", "evaluate", "export-dashboard"):
+    for name in ("clean", "export-dashboard"):
         sub.add_parser(name).add_argument("--city", default="gurgaon")
+    for name in ("train", "evaluate"):
+        sp = sub.add_parser(name)
+        sp.add_argument("--city", default="gurgaon")
+        # "accurate" (ExtraTrees) is CLI-only: it cannot be exported to the
+        # browser dashboard (see homecast.export._require_exportable).
+        sp.add_argument("--model", default="default", choices=sorted(MODELS))
     pr = sub.add_parser("predict")
     pr.add_argument("--city", default="gurgaon")
     pr.add_argument("--sector", required=True)
@@ -88,19 +95,24 @@ def main(argv=None) -> int:
             _do_clean(city)
         elif a.cmd == "train":
             df = _load_processed(city)
-            fitted = train_final(df)
+            fitted = train_final(df, model=a.model)
             city.models_dir.mkdir(parents=True, exist_ok=True)
             with _quiet_joblib():
                 joblib.dump(fitted, city.models_dir / "model.joblib")
-            write_export(export_city(fitted, df, city), city.models_dir / "model.json")
+            try:
+                write_export(export_city(fitted, df, city), city.models_dir / "model.json")
+            except ValueError as exc:
+                # e.g. --model accurate: never exported to the browser, but
+                # the CLI artifacts (joblib/metrics) are still produced.
+                print(f"note: dashboard export skipped ({exc})")
             (city.models_dir / "metrics.json").write_text(
                 json.dumps({k: fitted.metrics[k] for k in
                             ("model", "baseline_sector", "baseline_global",
-                             "n", "n_splits", "params")}, indent=2))
+                             "n", "n_splits", "params", "model_name")}, indent=2))
             print(_fmt_metrics(fitted.metrics))
             print(f"Artifacts -> {city.models_dir}")
         elif a.cmd == "evaluate":
-            print(_fmt_metrics(evaluate_cv(_load_processed(city))))
+            print(_fmt_metrics(evaluate_cv(_load_processed(city), model=a.model)))
         elif a.cmd == "export-dashboard":
             fitted = _load_fitted(city)
             write_export(export_city(fitted, _load_processed(city), city),

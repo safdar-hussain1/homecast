@@ -23,7 +23,24 @@ def tree_to_arrays(tree) -> dict:
             "v": tree.value.squeeze(axis=(1, 2)).tolist()}
 
 
+def _require_exportable(model) -> None:
+    """The browser walker only understands a GradientBoostingRegressor-style
+    staged ensemble (a constant ``init_`` plus additive shrunk trees). An
+    estimator like ExtraTrees has no ``init_``/``learning_rate`` and averages
+    trees instead of walking them additively, so it cannot be represented by
+    ``tree_to_arrays``/``predict_from_export`` at all -- fail loudly instead
+    of silently exporting a payload that would mispredict in the browser."""
+    if not hasattr(model, "init_") or not hasattr(model, "learning_rate"):
+        raise ValueError(
+            f"{type(model).__name__} cannot be exported to the browser "
+            f"dashboard (missing 'init_'/'learning_rate' -- only a "
+            f"GradientBoostingRegressor-style staged ensemble is "
+            f"exportable). Train with model=\"default\" to get an "
+            f"exportable model; \"accurate\" is CLI-only.")
+
+
 def export_city(fitted: FittedModel, df: pd.DataFrame, city: City) -> dict:
+    _require_exportable(fitted.model)
     res = np.asarray(fitted.metrics["residuals_log"])
     counts, edges = np.histogram(res, bins=20)
     by_sector = (df.groupby("sector")

@@ -106,6 +106,40 @@ def test_export_dashboard_without_trained_model_is_friendly(city_env, capsys):
     assert rc == 2
     assert "homecast train" in capsys.readouterr().err
 
+def test_train_accurate_model_skips_dashboard_export(city_env, capsys):
+    """--model accurate must still produce a usable trained model, but never
+    a browser payload (ExtraTrees has no init_/learning_rate to walk)."""
+    rc = cli.main(["train", "--model", "accurate"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "note: dashboard export skipped" in out
+    assert (city_env.models_dir / "model.joblib").exists()
+    assert (city_env.models_dir / "metrics.json").exists()
+    assert not (city_env.models_dir / "model.json").exists()
+
+def test_predict_works_after_training_the_accurate_model(city_env, capsys):
+    cli.main(["train", "--model", "accurate"])
+    rc = cli.main(["predict", "--sector", "sector 1", "--type", "flat",
+                   "--bhk", "3", "--bath", "2", "--area", "1500",
+                   "--furnishing", "semi-furnished", "--luxury", "50"])
+    assert rc == 0
+    assert "Cr" in capsys.readouterr().out
+
+def test_train_default_model_still_writes_dashboard_export(city_env, capsys):
+    rc = cli.main(["train", "--model", "default"])
+    assert rc == 0
+    assert "note: dashboard export skipped" not in capsys.readouterr().out
+    assert (city_env.models_dir / "model.json").exists()
+
+def test_evaluate_accepts_model_flag(city_env, capsys):
+    rc = cli.main(["evaluate", "--city", "gurgaon", "--model", "accurate"])
+    assert rc == 0
+    assert "HomeCast model" in capsys.readouterr().out
+
+def test_bad_model_name_is_friendly(city_env, capsys):
+    with pytest.raises(SystemExit):
+        cli.main(["train", "--model", "fastest"])
+
 def test_predict_accepts_optional_society_and_balcony(city_env, capsys):
     cli.main(["train"])
     rc = cli.main(["predict", "--sector", "sector 1", "--type", "flat",

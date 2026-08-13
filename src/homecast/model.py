@@ -4,6 +4,12 @@ Evaluation is 5-fold cross-validation where every fold-local encoding is
 re-learned inside every training fold (no target leakage), and the model is
 compared against the two pricing rules an agent would use without a model:
 global median Rs/sqft x area, and sector-median Rs/sqft x area.
+
+Two named models are available (see ``MODELS``): ``"default"`` is a
+GradientBoostingRegressor small enough to export to the browser dashboard;
+``"accurate"`` is a heavier ExtraTreesRegressor for CLI-only use that beats
+the default on offline metrics but has no staged/init_ structure and cannot
+be exported (see ``homecast.export``).
 """
 from __future__ import annotations
 
@@ -11,13 +17,31 @@ from dataclasses import dataclass, field
 
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import GradientBoostingRegressor
+from sklearn.base import BaseEstimator, clone
+from sklearn.ensemble import ExtraTreesRegressor, GradientBoostingRegressor
 from sklearn.model_selection import KFold
 
 from homecast.features import Encoders, build_features, fit_encoders, target
 
-DEFAULT_PARAMS = {"n_estimators": 300, "max_depth": 3, "learning_rate": 0.06,
+DEFAULT_PARAMS = {"n_estimators": 500, "max_depth": 5, "learning_rate": 0.05,
                   "subsample": 0.9, "random_state": 7}
+ACCURATE_PARAMS = {"n_estimators": 100, "random_state": 7, "n_jobs": -1}
+
+# Named model registry. Each entry is a template estimator; every fold/final
+# fit clones it fresh so no state leaks between folds or between cities.
+MODELS: dict[str, BaseEstimator] = {
+    "default": GradientBoostingRegressor(**DEFAULT_PARAMS),
+    "accurate": ExtraTreesRegressor(**ACCURATE_PARAMS),
+}
+
+
+def _make_estimator(model: str) -> BaseEstimator:
+    try:
+        template = MODELS[model]
+    except KeyError:
+        raise ValueError(f"Unknown model '{model}'. Valid: "
+                         f"{', '.join(sorted(MODELS))}") from None
+    return clone(template)
 
 
 def _validate_prices(df: pd.DataFrame) -> None:
@@ -53,14 +77,14 @@ def _baseline_pred(train: pd.DataFrame, test: pd.DataFrame, by_sector: bool) -> 
     return ppsf * test["area"].to_numpy() / 1e7
 
 
-def evaluate(df: pd.DataFrame, params: dict = DEFAULT_PARAMS, n_splits: int = 5) -> dict:
+def evaluate(df: pd.DataFrame, model: str = "default", n_splits: int = 5) -> dict:
     df = df.reset_index(drop=True)
     _validate_prices(df)
     oof = {k: np.zeros(len(df)) for k in ("model", "baseline_sector", "baseline_global")}
     for tr_idx, te_idx in KFold(n_splits, shuffle=True, random_state=7).split(df):
         tr, te = df.iloc[tr_idx], df.iloc[te_idx]
         enc = fit_encoders(tr)                           # fold-local: no leakage
-        est = GradientBoostingRegressor(**params)
+        est = _make_estimator(model)
         est.fit(build_features(tr, enc), target(tr))
         oof["model"][te_idx] = np.exp(est.predict(build_features(te, enc)))
         oof["baseline_sector"][te_idx] = _baseline_pred(tr, te, by_sector=True)
@@ -69,24 +93,25 @@ def evaluate(df: pd.DataFrame, params: dict = DEFAULT_PARAMS, n_splits: int = 5)
     out = {k: _metrics(actual, v) for k, v in oof.items()}
     out["residuals_log"] = (np.log(oof["model"]) - np.log(actual)).tolist()
     out["n"] = len(df)
-    out["params"] = dict(params)
+    out["model_name"] = model
+    out["params"] = MODELS[model].get_params()
     out["n_splits"] = n_splits
     return out
 
 
 @dataclass(frozen=True)
 class FittedModel:
-    model: GradientBoostingRegressor
+    model: BaseEstimator
     encoders: Encoders
     band: tuple
     ranges: dict
     metrics: dict = field(repr=False)
 
 
-def train_final(df: pd.DataFrame, params: dict = DEFAULT_PARAMS) -> FittedModel:
-    metrics = evaluate(df, params)
+def train_final(df: pd.DataFrame, model: str = "default") -> FittedModel:
+    metrics = evaluate(df, model=model)
     enc = fit_encoders(df)
-    est = GradientBoostingRegressor(**params)
+    est = _make_estimator(model)
     est.fit(build_features(df, enc), target(df))
     res = np.asarray(metrics["residuals_log"])
     band = (float(np.quantile(res, 0.10)), float(np.quantile(res, 0.90)))

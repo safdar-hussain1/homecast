@@ -85,3 +85,17 @@ def test_encodings_carry_every_fold_local_map(payload):
 def test_encodings_carry_balcony_codes(payload):
     _, p = payload
     assert p["encodings"]["balcony"] == {"0": 0, "1": 1, "2": 2, "3": 3, "3+": 4}
+
+
+# ── the accurate model must never be exported to the browser ──────────────
+
+def test_accurate_model_export_raises_a_clear_error(clean_fixture):
+    fitted = train_final(clean_fixture, model="accurate")
+    with pytest.raises(ValueError, match="cannot be exported"):
+        export_city(fitted, clean_fixture, get_city("gurgaon"))
+
+def test_default_model_still_exports(clean_fixture):
+    """The exportability guard must not false-positive on the shipped model."""
+    fitted = train_final(clean_fixture, model="default")
+    p = export_city(fitted, clean_fixture, get_city("gurgaon"))
+    assert p["model"]["trees"]
