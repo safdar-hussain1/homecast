@@ -49,6 +49,11 @@ def build(city: str = "gurgaon",
                 "sectors", "sample"):
         if key not in payload:
             raise ValueError(f"{model_path} is missing the '{key}' key")
+    for enc_key in ("furnishing", "age", "balcony", "sector_ppsf",
+                    "sector_ppsf_mean", "sector_ppsf_std", "sector_count",
+                    "society_ppsf"):
+        if enc_key not in payload["encodings"]:
+            raise ValueError(f"{model_path} encodings is missing the '{enc_key}' key")
 
     data = json.dumps(payload, allow_nan=False, separators=(",", ":"))
     if PLACEHOLDER in data:

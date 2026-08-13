@@ -464,6 +464,18 @@ footer .mono{font-size:12px; color:var(--ink-3)}
             <input type="range" id="i-lux" value="60" step="1">
             <div class="scale"><span>0 · bare</span><span id="lux-hi">174 · loaded</span></div>
           </div>
+
+          <div class="f f-4">
+            <label for="i-society">Society <span class="flabel">(optional — improves accuracy)</span></label>
+            <input type="text" id="i-society" list="societyList" placeholder="Start typing a society name…">
+            <datalist id="societyList"></datalist>
+          </div>
+          <div class="f f-2">
+            <label for="i-balcony">Balconies</label>
+            <select id="i-balcony">
+              <option value="">Not specified</option>
+            </select>
+          </div>
         </div>
 
         <p class="warn" id="areaWarn" role="status"><span class="ic" aria-hidden="true">!</span><span id="areaWarnText"></span></p>
@@ -747,6 +759,12 @@ function predict(m, x){
 
 const SP = DATA.encodings.sector_ppsf;
 const GLOBAL_PPSF = SP.__global__;
+const SECTOR_MEAN = DATA.encodings.sector_ppsf_mean;
+const SECTOR_STD = DATA.encodings.sector_ppsf_std;
+const SECTOR_COUNT = DATA.encodings.sector_count;
+const SOCIETY_PPSF = DATA.encodings.society_ppsf;
+const GLOBAL_SOCIETY_PPSF = SOCIETY_PPSF.__global__;
+const SOCIETIES = Object.keys(SOCIETY_PPSF).filter(k => k !== '__global__').sort();
 const SECTORS = Object.keys(SP).filter(k => k !== '__global__').sort(cmpSector);
 const AREA_MIN = DATA.ranges.area[0], AREA_MAX = DATA.ranges.area[1];
 const LUX_MIN = DATA.ranges.luxury_score[0], LUX_MAX = DATA.ranges.luxury_score[1];
@@ -761,14 +779,23 @@ function cmpSector(a, b){
 
 function featureRow(q){
   const v = {
-    area:            q.area,
-    bedrooms:        q.bedrooms,
-    bathrooms:       q.bathrooms,
-    is_house:        q.type === 'house' ? 1 : 0,
-    furnishing_code: DATA.encodings.furnishing[q.furnishing],
-    luxury_score:    q.luxury,
-    age_code:        (q.age && q.age in DATA.encodings.age) ? DATA.encodings.age[q.age] : -1,
-    sector_ppsf:     (q.sector in SP) ? SP[q.sector] : GLOBAL_PPSF
+    area:             q.area,
+    bedrooms:         q.bedrooms,
+    bathrooms:        q.bathrooms,
+    is_house:         q.type === 'house' ? 1 : 0,
+    furnishing_code:  DATA.encodings.furnishing[q.furnishing],
+    luxury_score:     q.luxury,
+    age_code:         (q.age && q.age in DATA.encodings.age) ? DATA.encodings.age[q.age] : -1,
+    sector_ppsf:      (q.sector in SP) ? SP[q.sector] : GLOBAL_PPSF,
+    sector_ppsf_mean: (q.sector in SECTOR_MEAN) ? SECTOR_MEAN[q.sector] : SECTOR_MEAN.__global__,
+    sector_ppsf_std:  (q.sector in SECTOR_STD) ? SECTOR_STD[q.sector] : SECTOR_STD.__global__,
+    sector_count:     (q.sector in SECTOR_COUNT) ? SECTOR_COUNT[q.sector] : 0,
+    // Both are optional inputs (a caller who doesn't know the society or
+    // balcony count leaves them unset); an unset/unknown value falls back
+    // exactly like an unseen category does during training. Mirrors
+    // query_to_row()/estimate() in valuation.py.
+    society_ppsf:     (q.society && q.society in SOCIETY_PPSF) ? SOCIETY_PPSF[q.society] : GLOBAL_SOCIETY_PPSF,
+    balcony_code:     (q.balcony && q.balcony in DATA.encodings.balcony) ? DATA.encodings.balcony[q.balcony] : -1
   };
   return DATA.feature_order.map(k => v[k]);
 }
@@ -820,7 +847,8 @@ function luxWord(v){
 const $ = id => document.getElementById(id);
 const el = {
   sector:$('i-sector'), bhk:$('i-bhk'), bath:$('i-bath'), age:$('i-age'),
-  area:$('i-area'), areaR:$('i-area-r'), furn:$('i-furn'), lux:$('i-lux')
+  area:$('i-area'), areaR:$('i-area-r'), furn:$('i-furn'), lux:$('i-lux'),
+  society:$('i-society'), balcony:$('i-balcony')
 };
 
 function opt(sel, value, label, selected){
@@ -834,6 +862,8 @@ for (let i = 1; i <= 6; i++) opt(el.bhk, i, i + ' BHK', i === 3);
 for (let i = 1; i <= 6; i++) opt(el.bath, i, String(i), i === 3);
 Object.keys(DATA.encodings.age).forEach(a => opt(el.age, a, a, false));
 Object.keys(DATA.encodings.furnishing).forEach(f => opt(el.furn, f, titleCase(f), f === 'semi-furnished'));
+Object.keys(DATA.encodings.balcony).forEach(b => opt(el.balcony, b, b === '0' ? 'None' : b, false));
+SOCIETIES.forEach(s => opt($('societyList'), s, titleCase(s), false));
 
 el.area.min = AREA_MIN; el.area.max = AREA_MAX;
 el.areaR.min = AREA_MIN; el.areaR.max = AREA_MAX;
@@ -861,7 +891,9 @@ function currentQuery(){
     bedrooms: +el.bhk.value, bathrooms: +el.bath.value,
     area: area, askedArea: asked,
     furnishing: el.furn.value, luxury: +el.lux.value,
-    age: el.age.value || null
+    age: el.age.value || null,
+    society: el.society.value.trim() || null,
+    balcony: el.balcony.value || null
   };
 }
 
@@ -898,7 +930,9 @@ function render(){
   $('bandHi').textContent = cr(e.hi);
   $('slipSpec').textContent = [titleCase(q.sector), q.type, q.bedrooms + ' BHK', q.bathrooms + ' bath',
                                IN(q.area) + ' sq.ft.', q.furnishing, 'amenity ' + q.luxury,
-                               q.age ? q.age.toLowerCase() : 'age not given'].join(' · ');
+                               q.age ? q.age.toLowerCase() : 'age not given',
+                               q.society ? titleCase(q.society) : 'society not given',
+                               q.balcony ? q.balcony + ' balconies' : 'balconies not given'].join(' · ');
 
   /* the ₹/sq.ft. rule of thumb — sector median ₹/sq.ft. × area, the same
      formula as the sector-median baseline the model is scored against */
@@ -1037,9 +1071,12 @@ const C = n => css().getPropertyValue(n).trim();
    own feature_importances_, keyed by feature name — so this page can never
    carry a stale copy. Show the four the model leans on, roll up the rest. */
 const IMP_LABELS = {
-  area: 'Built-up area', sector_ppsf: 'Sector ₹/sq.ft.', bathrooms: 'Bathrooms',
+  area: 'Built-up area', sector_ppsf: 'Sector ₹/sq.ft. (median)', bathrooms: 'Bathrooms',
   is_house: 'House (not flat)', bedrooms: 'Bedrooms', furnishing_code: 'Furnishing',
-  luxury_score: 'Amenity score', age_code: 'Age / possession'
+  luxury_score: 'Amenity score', age_code: 'Age / possession',
+  sector_ppsf_mean: 'Sector ₹/sq.ft. (mean)', sector_ppsf_std: 'Sector ₹/sq.ft. spread',
+  sector_count: 'Sector listing count', society_ppsf: 'Society ₹/sq.ft. (smoothed)',
+  balcony_code: 'Balconies'
 };
 const NUMWORD = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight'];
 const IMPORTANCES = (() => {
@@ -1224,7 +1261,8 @@ $('themeBtn').addEventListener('click', () => {
 syncThemeLabel();
 
 /* ── wire up ──────────────────────────────────────────────────────────── */
-[el.sector, el.bhk, el.bath, el.age, el.furn].forEach(c => c.addEventListener('change', render));
+[el.sector, el.bhk, el.bath, el.age, el.furn, el.balcony].forEach(c => c.addEventListener('change', render));
+el.society.addEventListener('input', render);
 el.area.addEventListener('input', render);
 el.areaR.addEventListener('input', () => { el.area.value = el.areaR.value; render(); });
 el.lux.addEventListener('input', render);

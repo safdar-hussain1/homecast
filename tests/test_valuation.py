@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import pytest
 
 from homecast.model import train_final
@@ -80,3 +81,65 @@ def test_age_none_is_allowed(fitted):
 def test_out_of_range_numeric_inputs_rejected(fitted, field, value):
     with pytest.raises(ValueError, match=f"{field} {value} outside supported range"):
         estimate(fitted, q(**{field: value}))
+
+
+# ── optional society / balcony inputs ──────────────────────────────────────
+
+def test_society_and_balcony_are_optional(fitted):
+    """Omitting both must still produce a normal estimate (fallback to the
+    global median / missing code), not an error."""
+    e = estimate(fitted, q())
+    assert e["price_cr"] > 0
+
+def test_unknown_balcony_rejected(fitted):
+    with pytest.raises(ValueError, match="Unknown balcony '9'"):
+        estimate(fitted, q(balcony="9"))
+
+def test_valid_balcony_accepted(fitted):
+    assert estimate(fitted, q(balcony="2"))["price_cr"] > 0
+
+def test_unrecognised_society_falls_back_instead_of_erroring(fitted):
+    """Unlike sector, an unknown society is not a typo trap -- it legitimately
+    means "not one of the societies seen in training" and must fall back
+    quietly, the same way an unseen sector does inside a CV fold."""
+    e = estimate(fitted, q(society="a society nobody has ever heard of"))
+    assert e["price_cr"] > 0
+
+@pytest.fixture()
+def society_signal_fixture() -> pd.DataFrame:
+    """Two societies with clearly separated ₹/sq.ft. (unlike the shared
+    `clean_fixture`, which has a single constant society and so carries no
+    society signal at all) -- enough for a fitted model to have actually
+    learned something from `society_ppsf`."""
+    rng = np.random.default_rng(9)
+    n = 200
+    # Deliberately imbalanced (70/30) so the dataset's global median sits
+    # inside the majority ("low society") cluster -- that makes the
+    # assertions below robust to exactly where the median falls, rather than
+    # relying on a ~50/50 random split landing on one side by chance.
+    society = np.array(["low society"] * 140 + ["high society"] * 60)
+    base = np.where(society == "high society", 20000.0, 6000.0)
+    ppsf = base * np.exp(rng.normal(0.0, 0.03, n))
+    area = rng.uniform(800.0, 2000.0, n)
+    return pd.DataFrame({
+        "sector": "sector 1", "society": society, "property_type": "flat",
+        "price": area * ppsf / 1e7, "price_per_sqft": ppsf, "area": area,
+        "bedrooms": 3, "bathrooms": 2, "balcony": "2",
+        "furnishing_type": "semi-furnished", "luxury_score": 50,
+        "age_possession": "New Property",
+    })
+
+def test_known_society_changes_the_prediction(society_signal_fixture):
+    """society_ppsf is a real, informative feature: naming the actual society
+    must move the prediction toward that society's price level (otherwise the
+    feature would be dead weight at inference time)."""
+    f = train_final(society_signal_fixture)
+    base = dict(sector="sector 1", property_type="flat", bedrooms=3, bathrooms=2,
+                area=1400.0, furnishing="semi-furnished", luxury_score=50)
+    high = estimate(f, Query(**base, society="high society"))["price_cr"]
+    low = estimate(f, Query(**base, society="low society"))["price_cr"]
+    unspecified = estimate(f, Query(**base))["price_cr"]
+    assert high > low
+    # naming the pricier society must lift the estimate above the
+    # unspecified (global-median-fallback) default
+    assert high > unspecified

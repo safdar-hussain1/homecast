@@ -18,7 +18,7 @@ def payload(clean_fixture):
 def test_parity_python_vs_export(clean_fixture, payload):
     """The exported JSON must reproduce sklearn's predictions exactly."""
     fitted, p = payload
-    X = build_features(clean_fixture, fitted.sector_map)
+    X = build_features(clean_fixture, fitted.encoders)
     want = predict_price(fitted, X)
     got = np.array([predict_from_export(p, row) for row in X.to_numpy()])
     assert np.allclose(got, want, rtol=0, atol=1e-9)
@@ -70,3 +70,18 @@ def test_sectors_records_shape_and_filter(clean_fixture, payload):
     assert set(rec) == {"name", "n", "median_price_cr", "median_ppsf"}
     assert rec["n"] == 40
     assert rec["median_price_cr"] == pytest.approx(big["price"].median())
+
+
+# ── new fold-local encoders reach the payload ──────────────────────────────
+
+def test_encodings_carry_every_fold_local_map(payload):
+    fitted, p = payload
+    enc = p["encodings"]
+    for key in ("sector_ppsf", "sector_ppsf_mean", "sector_ppsf_std",
+                "sector_count", "society_ppsf"):
+        assert enc[key], f"{key} is empty"
+        assert set(fitted.encoders.__dict__[key]) == set(enc[key])
+
+def test_encodings_carry_balcony_codes(payload):
+    _, p = payload
+    assert p["encodings"]["balcony"] == {"0": 0, "1": 1, "2": 2, "3": 3, "3+": 4}

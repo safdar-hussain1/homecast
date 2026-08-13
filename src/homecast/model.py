@@ -1,9 +1,9 @@
 """Valuation model: gradient-boosted trees on log(price), evaluated honestly.
 
-Evaluation is 5-fold cross-validation where the sector encoding is re-learned
-inside every training fold (no target leakage), and the model is compared
-against the two pricing rules an agent would use without a model: global
-median Rs/sqft x area, and sector-median Rs/sqft x area.
+Evaluation is 5-fold cross-validation where every fold-local encoding is
+re-learned inside every training fold (no target leakage), and the model is
+compared against the two pricing rules an agent would use without a model:
+global median Rs/sqft x area, and sector-median Rs/sqft x area.
 """
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ import pandas as pd
 from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.model_selection import KFold
 
-from homecast.features import build_features, sector_encoding, target
+from homecast.features import Encoders, build_features, fit_encoders, target
 
 DEFAULT_PARAMS = {"n_estimators": 300, "max_depth": 3, "learning_rate": 0.06,
                   "subsample": 0.9, "random_state": 7}
@@ -59,10 +59,10 @@ def evaluate(df: pd.DataFrame, params: dict = DEFAULT_PARAMS, n_splits: int = 5)
     oof = {k: np.zeros(len(df)) for k in ("model", "baseline_sector", "baseline_global")}
     for tr_idx, te_idx in KFold(n_splits, shuffle=True, random_state=7).split(df):
         tr, te = df.iloc[tr_idx], df.iloc[te_idx]
-        smap = sector_encoding(tr)                      # fold-local: no leakage
+        enc = fit_encoders(tr)                           # fold-local: no leakage
         est = GradientBoostingRegressor(**params)
-        est.fit(build_features(tr, smap), target(tr))
-        oof["model"][te_idx] = np.exp(est.predict(build_features(te, smap)))
+        est.fit(build_features(tr, enc), target(tr))
+        oof["model"][te_idx] = np.exp(est.predict(build_features(te, enc)))
         oof["baseline_sector"][te_idx] = _baseline_pred(tr, te, by_sector=True)
         oof["baseline_global"][te_idx] = _baseline_pred(tr, te, by_sector=False)
     actual = df["price"].to_numpy(dtype=float)
@@ -77,7 +77,7 @@ def evaluate(df: pd.DataFrame, params: dict = DEFAULT_PARAMS, n_splits: int = 5)
 @dataclass(frozen=True)
 class FittedModel:
     model: GradientBoostingRegressor
-    sector_map: dict
+    encoders: Encoders
     band: tuple
     ranges: dict
     metrics: dict = field(repr=False)
@@ -85,14 +85,14 @@ class FittedModel:
 
 def train_final(df: pd.DataFrame, params: dict = DEFAULT_PARAMS) -> FittedModel:
     metrics = evaluate(df, params)
-    smap = sector_encoding(df)
+    enc = fit_encoders(df)
     est = GradientBoostingRegressor(**params)
-    est.fit(build_features(df, smap), target(df))
+    est.fit(build_features(df, enc), target(df))
     res = np.asarray(metrics["residuals_log"])
     band = (float(np.quantile(res, 0.10)), float(np.quantile(res, 0.90)))
     ranges = {c: [float(df[c].min()), float(df[c].max())]
               for c in ("area", "bedrooms", "bathrooms", "luxury_score")}
-    return FittedModel(est, smap, band, ranges, metrics)
+    return FittedModel(est, enc, band, ranges, metrics)
 
 
 def predict_price(fitted: FittedModel, X: pd.DataFrame) -> np.ndarray:

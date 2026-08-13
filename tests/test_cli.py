@@ -105,3 +105,30 @@ def test_export_dashboard_without_trained_model_is_friendly(city_env, capsys):
     rc = cli.main(["export-dashboard", "--city", "gurgaon"])
     assert rc == 2
     assert "homecast train" in capsys.readouterr().err
+
+def test_predict_accepts_optional_society_and_balcony(city_env, capsys):
+    cli.main(["train"])
+    rc = cli.main(["predict", "--sector", "sector 1", "--type", "flat",
+                   "--bhk", "3", "--bath", "2", "--area", "1500",
+                   "--furnishing", "semi-furnished", "--luxury", "50",
+                   "--society", "test society", "--balcony", "2"])
+    assert rc == 0
+    assert "Cr" in capsys.readouterr().out
+
+def test_predict_unrecognised_society_is_not_an_error(city_env, capsys):
+    """Society is optional and not a typo trap, unlike sector."""
+    cli.main(["train"])
+    rc = cli.main(["predict", "--sector", "sector 1", "--type", "flat",
+                   "--bhk", "3", "--bath", "2", "--area", "1500",
+                   "--furnishing", "semi-furnished", "--luxury", "50",
+                   "--society", "not a real society"])
+    assert rc == 0
+
+def test_predict_bad_balcony_is_friendly(city_env, capsys):
+    cli.main(["train"])
+    rc = cli.main(["predict", "--sector", "sector 1", "--type", "flat",
+                   "--bhk", "3", "--bath", "2", "--area", "1500",
+                   "--furnishing", "semi-furnished", "--luxury", "50",
+                   "--balcony", "9"])
+    assert rc == 2
+    assert "Unknown balcony" in capsys.readouterr().err

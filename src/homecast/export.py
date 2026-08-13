@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 
 from homecast.cities import City
-from homecast.features import AGE_CODES, FEATURE_COLUMNS, FURNISHING_CODES
+from homecast.features import AGE_CODES, BALCONY_CODES, FEATURE_COLUMNS, FURNISHING_CODES
 from homecast.model import FittedModel
 
 
@@ -47,10 +47,17 @@ def export_city(fitted: FittedModel, df: pd.DataFrame, city: City) -> dict:
         # keyed by feature name so the dashboard never carries its own copy
         "feature_importances": {name: float(v) for name, v in
                                 zip(FEATURE_COLUMNS, fitted.model.feature_importances_)},
-        "encodings": {"furnishing": FURNISHING_CODES, "age": AGE_CODES,
-                      # includes the internal "__global__" fallback key alongside
-                      # real sector names -- don't iterate this as "all sectors"
-                      "sector_ppsf": {k: float(v) for k, v in fitted.sector_map.items()}},
+        "encodings": {
+            "furnishing": FURNISHING_CODES, "age": AGE_CODES, "balcony": BALCONY_CODES,
+            # each *_ppsf/sector_count map includes the internal "__global__"
+            # fallback key alongside real sector names -- don't iterate these
+            # as "all sectors"
+            "sector_ppsf": {k: float(v) for k, v in fitted.encoders.sector_ppsf.items()},
+            "sector_ppsf_mean": {k: float(v) for k, v in fitted.encoders.sector_ppsf_mean.items()},
+            "sector_ppsf_std": {k: float(v) for k, v in fitted.encoders.sector_ppsf_std.items()},
+            "sector_count": {k: float(v) for k, v in fitted.encoders.sector_count.items()},
+            "society_ppsf": {k: float(v) for k, v in fitted.encoders.society_ppsf.items()},
+        },
         "band": [float(fitted.band[0]), float(fitted.band[1])],
         "ranges": fitted.ranges,
         "metrics": metrics,

@@ -76,6 +76,10 @@ def main(argv=None) -> int:
     pr.add_argument("--furnishing", default="semi-furnished")
     pr.add_argument("--luxury", type=int, default=50)
     pr.add_argument("--age", default=None)
+    pr.add_argument("--society", default=None,
+                    help="optional; unrecognised names fall back to the "
+                         "city-wide median instead of erroring")
+    pr.add_argument("--balcony", default=None)
     a = p.parse_args(argv)
 
     try:
@@ -109,7 +113,8 @@ def main(argv=None) -> int:
             fitted = _load_fitted(city)
             q = Query(sector=a.sector, property_type=a.ptype, bedrooms=a.bhk,
                       bathrooms=a.bath, area=a.area, furnishing=a.furnishing,
-                      luxury_score=a.luxury, age=a.age)
+                      luxury_score=a.luxury, age=a.age, society=a.society,
+                      balcony=a.balcony)
             e = estimate(fitted, q)
             print(f"Estimated price: Rs {e['price_cr']:.2f} Cr "
                   f"(range {e['lo_cr']:.2f} - {e['hi_cr']:.2f} Cr)")
