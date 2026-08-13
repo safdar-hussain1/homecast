@@ -1,8 +1,10 @@
 import numpy as np
 import pandas as pd
 import pytest
+from sklearn.ensemble import GradientBoostingRegressor
+from sklearn.model_selection import KFold
 
-from homecast.features import build_features
+from homecast.features import build_features, sector_encoding, target
 from homecast.model import DEFAULT_PARAMS, evaluate, predict_price, train_final
 
 
@@ -63,3 +65,107 @@ def test_constant_price_r2_rejected(clean_fixture):
     flat["price"] = 1.0
     with pytest.raises(ValueError, match="identical"):
         evaluate(flat, n_splits=3)
+
+
+# ── no target leakage in the cross-validation loop ───────────────────────────
+# The project's headline claim is that `sector_ppsf` is re-learned inside every
+# training fold. These tests fail if that ever stops being true.
+
+@pytest.fixture()
+def leak_prone_frame() -> pd.DataFrame:
+    """A frame engineered so that leakage is measurable.
+
+    One listing per sector, with prices spanning two orders of magnitude.
+    Encoding the sector on the FULL frame therefore hands every row its own
+    price-per-sqft, from which its price is exactly recoverable. Encoding
+    fold-locally leaves each held-out sector unseen, so `sector_ppsf` falls back
+    to the global median and carries no information about that row. The gap
+    between the two scores is the leakage this project claims not to have.
+    """
+    n = 120
+    rng = np.random.default_rng(11)
+    area = rng.uniform(800.0, 1200.0, n).round()
+    ppsf = np.exp(rng.uniform(np.log(2000.0), np.log(80000.0), n)).round()
+    return pd.DataFrame({
+        "sector": [f"sector {i}" for i in range(n)],
+        "property_type": "flat",
+        "price": area * ppsf / 1e7,
+        "price_per_sqft": ppsf,
+        "area": area,
+        "bedrooms": 3,
+        "bathrooms": 2,
+        "furnishing_type": "semi-furnished",
+        "luxury_score": 50,
+        "age_possession": "New Property",
+    })
+
+
+def _leaky_oof_r2(df: pd.DataFrame, n_splits: int = 5) -> float:
+    """The wrong way, kept only as the thing `evaluate` must differ from.
+
+    Identical to `evaluate`'s fold loop except the sector encoding is learned
+    once from the whole frame — including the held-out rows' own prices —
+    instead of from each training fold. Never call this outside this test.
+    """
+    df = df.reset_index(drop=True)
+    smap_full = sector_encoding(df)                  # <- the leak
+    oof = np.zeros(len(df))
+    for tr_idx, te_idx in KFold(n_splits, shuffle=True, random_state=7).split(df):
+        tr, te = df.iloc[tr_idx], df.iloc[te_idx]
+        est = GradientBoostingRegressor(**DEFAULT_PARAMS)
+        est.fit(build_features(tr, smap_full), target(tr))
+        oof[te_idx] = np.exp(est.predict(build_features(te, smap_full)))
+    actual = df["price"].to_numpy(dtype=float)
+    err = oof - actual
+    return float(1 - np.sum(err ** 2) / np.sum((actual - actual.mean()) ** 2))
+
+
+def test_evaluate_does_not_leak_the_target_through_the_sector_encoding(leak_prone_frame):
+    """Behavioural: evaluate() must not score like the leaky variant."""
+    honest = evaluate(leak_prone_frame)["model"]["r2"]
+    leaky = _leaky_oof_r2(leak_prone_frame)
+    # the leaky loop nearly memorises the target on this frame
+    assert leaky > 0.90, f"leaky reference should be near-perfect, got {leaky:.3f}"
+    # an honest loop cannot come close, because every held-out sector is unseen
+    assert honest < leaky - 0.30, (
+        f"evaluate() scored R2={honest:.3f} against a leaky R2={leaky:.3f} — "
+        f"the fold loop looks like it is encoding on the full frame")
+
+
+def _spy_on_sector_encoding(monkeypatch) -> list[int]:
+    """Record the row count of every frame `model.sector_encoding` is called with."""
+    import homecast.model as model_mod
+    seen: list[int] = []
+    real = model_mod.sector_encoding
+
+    def spy(frame):
+        seen.append(len(frame))
+        return real(frame)
+
+    monkeypatch.setattr(model_mod, "sector_encoding", spy)
+    return seen
+
+
+def test_fold_loop_encodes_on_training_rows_only(clean_fixture, monkeypatch):
+    """Structural: every encoding inside evaluate() sees a training fold, never
+    the whole frame."""
+    seen = _spy_on_sector_encoding(monkeypatch)
+    n = len(clean_fixture)
+    evaluate(clean_fixture, n_splits=5)
+    assert seen, "sector_encoding was never called — the spy is not wired up"
+    assert n not in seen, (
+        f"sector_encoding was handed all {n} rows: the fold loop is leaking")
+    # KFold(5) training folds hold 4/5 of the rows, +-1 for the remainder
+    assert all(abs(k - 0.8 * n) <= 1 for k in seen), seen
+
+
+@pytest.mark.parametrize("k", [2, 3, 5])
+def test_evaluate_runs_the_requested_number_of_folds(clean_fixture, monkeypatch, k):
+    """`n_splits` is reported in the metrics; it must also be obeyed."""
+    seen = _spy_on_sector_encoding(monkeypatch)
+    out = evaluate(clean_fixture, n_splits=k)
+    assert out["n_splits"] == k
+    assert len(seen) == k
+    n = len(clean_fixture)
+    expected = n - n / k
+    assert all(abs(rows - expected) <= 1 for rows in seen), seen
