@@ -6,7 +6,8 @@ from sklearn.model_selection import KFold
 
 from homecast.features import build_features, fit_encoders, target
 from homecast.model import (DEFAULT_PARAMS, MODELS, SOCIETY_MASK_FRACTION,
-                            evaluate, predict_price, train_final)
+                            _without_society, evaluate, predict_price,
+                            train_final)
 
 
 def test_evaluate_reports_model_and_baselines(clean_fixture):
@@ -224,6 +225,42 @@ def test_model_degrades_gracefully_without_society_on_real_data():
     assert gap <= 3.0, (
         f"MAPE without society ({unknown:.2f}%) is {gap:.2f}pp worse than "
         f"with it ({known:.2f}%) on the real dataset -- expected ~1.6pp")
+
+
+def test_train_final_masks_society_in_the_shipped_final_fit():
+    """`train_final` has its OWN society-masking call (`Xfull = _mask_society(...)`)
+    separate from `evaluate`'s fold loop -- masking could be silently dropped
+    from just that one line and every other test in this file would still
+    pass, because they all exercise `evaluate`'s fold loop, not the final fit
+    that actually becomes `model.joblib`/`model.json`/the browser export.
+    `metrics.json` would keep advertising the masked, graceful-degradation
+    numbers (it comes from `evaluate`, untouched by such a regression) while
+    the shipped model itself quietly became society-brittle.
+
+    This test fits the real artifact via `train_final` on the real Gurgaon
+    dataset and directly measures the gap between predictions with society
+    supplied and predictions with society withheld (`_without_society`), on
+    the same rows the model was fit on. With masking intact this gap is
+    ~2.5pp; drop masking from just the final fit (leave `evaluate` alone) and
+    it balloons to ~16pp -- the threshold below is set decisively between
+    the two, verified by actually performing that mutation."""
+    df = pd.read_csv("data/gurgaon/processed/listings_clean.csv")
+    fitted = train_final(df)
+    X_given = build_features(df, fitted.encoders)
+    X_without = _without_society(X_given)
+    pred_given = predict_price(fitted, X_given)
+    pred_without = predict_price(fitted, X_without)
+    actual = df["price"].to_numpy(dtype=float)
+    mape_given = float(np.mean(np.abs(pred_given - actual) / actual) * 100)
+    mape_without = float(np.mean(np.abs(pred_without - actual) / actual) * 100)
+    gap = mape_without - mape_given
+    assert gap >= -1e-9, "withholding real information should not IMPROVE the estimate"
+    assert gap <= 8.0, (
+        f"train_final's shipped fit shows a {gap:.2f}pp gap between society-given "
+        f"and society-withheld predictions -- expected ~2.5pp. This is the "
+        f"signature of society masking having been dropped from the FINAL fit "
+        f"(model.py train_final's own `_mask_society` call), even if "
+        f"evaluate()'s fold loop is still masked correctly.")
 
 
 # ── no target leakage in the cross-validation loop ───────────────────────────
