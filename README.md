@@ -107,6 +107,9 @@ git clone https://github.com/safdar-hussain1/homecast.git && cd homecast
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt        # pinned, reproduces the published numbers
 pip install -e ".[dev]"                # package + pytest/jupyter
+# If `homecast` or `import homecast` raises ModuleNotFoundError, the editable
+# install's .pth did not reach sys.path (happens on some venvs). Then:
+export PYTHONPATH=src
 
 # --- the pipeline ------------------------------------------------------
 homecast clean   --city gurgaon        # raw CSV -> cleaned CSV, logs every row dropped
