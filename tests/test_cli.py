@@ -305,3 +305,49 @@ def test_predict_reports_which_accuracy_regime_it_used(society_signal_city_env, 
     assert cli.main(base + ["--society", "definitely not a real society"]) == 0
     out = capsys.readouterr().out
     assert "not in the training data" in out and "MAPE" in out
+
+
+# ── the `reference` subcommand: markets priced from rates, not a model ──────
+
+@pytest.fixture()
+def rate_table(tmp_path):
+    p = tmp_path / "rates.toml"
+    p.write_text(
+        'last_updated = "2026-08-13"\n\n'
+        '[[rate]]\n'
+        'zone = "Test Zone"\n'
+        'property_type = "plot"\n'
+        'rate_low_per_sqft = 1944\n'
+        'rate_high_per_sqft = 1944\n'
+        'source = "an official notification"\n'
+        'source_date = "2022-01-10"\n')
+    return p
+
+
+def test_reference_lists_zones_when_given_no_query(rate_table, capsys):
+    assert cli.main(["reference", "--rates", str(rate_table)]) == 0
+    out = capsys.readouterr().out
+    assert "Test Zone" in out and "plot" in out
+    assert "no listings dataset and no trained model" in out
+
+
+def test_reference_shows_the_arithmetic_and_refuses_prediction_framing(rate_table, capsys):
+    assert cli.main(["reference", "--rates", str(rate_table), "--zone", "Test Zone",
+                     "--type", "plot", "--area", "2178"]) == 0
+    out = capsys.readouterr().out
+    assert "an official notification" in out and "2022-01-10" in out
+    assert "not a prediction" in out
+    assert "0.42" in out
+
+
+def test_reference_errors_when_no_rate_covers_the_query(rate_table, capsys):
+    # e.g. asking for a flat when only plot rates are on file
+    assert cli.main(["reference", "--rates", str(rate_table), "--zone", "Test Zone",
+                     "--type", "flat", "--area", "1500"]) == 2
+    assert "No rate on file" in capsys.readouterr().err
+
+
+def test_reference_errors_helpfully_when_the_table_is_absent(tmp_path, capsys):
+    assert cli.main(["reference", "--rates", str(tmp_path / "nope.toml")]) == 2
+    err = capsys.readouterr().err
+    assert "no rate table at" in err and "example.toml" in err

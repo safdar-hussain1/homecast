@@ -126,6 +126,10 @@ open docs/index.html                       # Linux: xdg-open
 # --- bringing your own data --------------------------------------------
 homecast ingest --config path/to/city.toml # map a third-party CSV into the schema
 
+# --- markets with no data: rates, not a model ---------------------------
+homecast reference                         # list the zones a rate table covers
+homecast reference --zone "<zone>" --type plot --area 2178
+
 # --- tests -------------------------------------------------------------
 pytest -q                                  # 277 tests
 pytest -q tests/test_model.py              # one file
@@ -344,6 +348,15 @@ availability, licensing, and unit-convention research) but are not shipped
 here — some live in a private, gitignored tier with their own data-quality
 bar, others aren't ready. There's no fake "coming soon" chip for them: if you
 want another city, ask — **safdar.eryx@gmail.com**.
+
+Some markets can't support a model at all. Amaravathi, the planned Andhra
+Pradesh capital, has single-digit live listings and no dataset — training on
+that would be fabrication. It gets `homecast reference` instead: a rate table
+of published APCRDA/IGRS figures, each shown with its own source and date, and
+the arithmetic printed in full. It carries no statistical band and says on
+every line that it is a reference, not a prediction. The rate table itself is
+private (`private/amaravathi/rates.toml`); `config/amaravathi.rates.example.toml`
+is the committed, deliberately-fake schema stand-in.
 
 ## Tech stack
 

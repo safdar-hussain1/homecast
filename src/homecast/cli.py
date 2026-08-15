@@ -92,6 +92,48 @@ def _fmt_metrics(m: dict) -> str:
     return "\n".join(out)
 
 
+def _do_reference(a) -> int:
+    """Rate-based reference for a market with no listings data and no model.
+
+    Prints every source rate with its own date and shows the arithmetic. It is
+    deliberately not a prediction and carries no statistical band -- see
+    homecast.reference.REFERENCE_LABEL.
+    """
+    from pathlib import Path
+
+    from homecast import reference as ref
+
+    path = Path(a.rates)
+    if not path.exists():
+        raise FileNotFoundError(
+            f"no rate table at {path} — this market is priced from a "
+            f"hand-maintained table, not a trained model. Copy "
+            f"config/amaravathi.rates.example.toml to {path} and replace the "
+            f"placeholder figures with real, dated, sourced rates.")
+    table = ref.load_rate_table(path)
+
+    combos = sorted({(e.zone, e.property_type) for e in table.entries})
+    if a.zone is None or a.rtype is None or a.area is None:
+        print(f"{ref.CITY_DISPLAY} — rate-based reference "
+              f"(table last updated {table.last_updated})")
+        print("This market has no listings dataset and no trained model; it is "
+              "priced from published rates.\n")
+        print("Available zone / property_type combinations:")
+        for zone, ptype in combos:
+            print(f"  --zone {zone!r} --type {ptype!r}")
+        print("\nAdd --area <sq.ft.> to get a reference range, e.g.:")
+        z, t = combos[0]
+        print(f"  homecast reference --zone {z!r} --type {t!r} --area 2178")
+        stale = ref.staleness_warning(table)
+        if stale:
+            print(f"\n{stale}")
+        return 0
+
+    est = ref.estimate(table, a.zone, a.rtype, a.area, locality=a.zone)
+    print(est.explain())
+    return 0
+
+
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(prog="homecast",
                                 description="Residential property price intelligence")
@@ -124,9 +166,26 @@ def main(argv=None) -> int:
                     help="optional; unrecognised names fall back to the "
                          "sector's rate instead of erroring")
     pr.add_argument("--balcony", default=None)
+    # Markets with no usable listings data get a rate-based reference instead
+    # of a model -- see homecast.reference. Not a prediction, and it says so.
+    rf = sub.add_parser("reference",
+                        help="rate-based reference for a market with no model "
+                             "(e.g. Amaravathi); not a prediction")
+    rf.add_argument("--rates", default="private/amaravathi/rates.toml",
+                    help="path to the rate table TOML")
+    rf.add_argument("--zone", default=None,
+                    help="omit to list the zones the table covers")
+    rf.add_argument("--type", dest="rtype", default=None,
+                    help="property type as named in the table (e.g. plot, land)")
+    rf.add_argument("--area", type=float, default=None,
+                    help="area in sq.ft.")
     a = p.parse_args(argv)
 
     try:
+        if a.cmd == "reference":
+            # Handled before get_city(): a reference market has no city entry,
+            # no dataset and no model -- only a hand-maintained rate table.
+            return _do_reference(a)
         city = get_city(a.city)
         if a.cmd == "clean":
             _do_clean(city)
