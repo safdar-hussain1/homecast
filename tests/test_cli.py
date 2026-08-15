@@ -351,3 +351,53 @@ def test_reference_errors_helpfully_when_the_table_is_absent(tmp_path, capsys):
     assert cli.main(["reference", "--rates", str(tmp_path / "nope.toml")]) == 2
     err = capsys.readouterr().err
     assert "no rate table at" in err and "example.toml" in err
+
+
+# ── the reference calculator's CLI surface ────────────────────────────────
+# Amaravathi has no listings dataset and no model; it is priced from a
+# hand-maintained rate table. These prove the command is usable and that it
+# refuses to invent a number it has no rate for.
+
+@pytest.fixture()
+def rates_file(tmp_path):
+    p = tmp_path / "rates.toml"
+    p.write_text(
+        'last_updated = "2099-01-01"\n\n'
+        '[[rate]]\n'
+        'zone = "Test Zone"\n'
+        'property_type = "plot"\n'
+        'rate_low_per_sqft = 1900\n'
+        'rate_high_per_sqft = 2000\n'
+        'source = "official notification (test)"\n'
+        'source_date = "2099-01-01"\n')
+    return p
+
+
+def test_reference_lists_zones_when_args_omitted(rates_file, capsys):
+    assert cli.main(["reference", "--rates", str(rates_file)]) == 0
+    out = capsys.readouterr().out
+    assert "Test Zone" in out and "plot" in out
+    assert "no listings dataset and no trained model" in out
+
+
+def test_reference_prices_from_the_table_and_shows_its_sources(rates_file, capsys):
+    assert cli.main(["reference", "--rates", str(rates_file), "--zone",
+                     "Test Zone", "--type", "plot", "--area", "1000"]) == 0
+    out = capsys.readouterr().out
+    assert "not a prediction" in out
+    assert "official notification (test)" in out      # every rate is sourced
+    assert "0.19-0.20 Cr" in out                      # 1900-2000/sqft x 1000
+
+
+def test_reference_refuses_a_type_it_has_no_rate_for(rates_file, capsys):
+    """The owner's flat can't be priced from plot rates -- it must say so
+    rather than reaching for the nearest number."""
+    assert cli.main(["reference", "--rates", str(rates_file), "--zone",
+                     "Test Zone", "--type", "flat", "--area", "1000"]) == 2
+    assert "No rate on file" in capsys.readouterr().err
+
+
+def test_reference_explains_how_to_create_a_missing_rate_table(tmp_path, capsys):
+    assert cli.main(["reference", "--rates", str(tmp_path / "absent.toml")]) == 2
+    err = capsys.readouterr().err
+    assert "amaravathi.rates.example.toml" in err

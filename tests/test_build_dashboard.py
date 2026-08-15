@@ -119,3 +119,43 @@ def test_private_city_never_writes_into_docs_dir_end_to_end(synthetic_private_ci
             build_dashboard.PRIVATE_DASHBOARDS_DIR.rmdir()
     after = set(p.resolve() for p in (ROOT / "docs").rglob("*"))
     assert before == after
+
+
+# ── reference-market page + local all-cities hub ───────────────────────────
+
+def _rates_toml(p):
+    p.write_text(
+        'last_updated = "2026-08-13"\n\n'
+        '[[rate]]\nzone = "Test Zone"\nproperty_type = "plot"\n'
+        'rate_low_per_sqft = 1944\nrate_high_per_sqft = 1978\n'
+        'source = "an official notification"\nsource_date = "2022-01-10"\n')
+    return p
+
+
+def test_reference_page_bakes_the_rate_table(tmp_path):
+    import scripts.build_reference_dashboard as brd
+    out = brd.build(_rates_toml(tmp_path / "rates.toml"), tmp_path / "ref.html")
+    html = out.read_text()
+    assert "/*__DATA__*/" not in html          # placeholder consumed
+    assert "an official notification" in html  # source travelled through
+    assert "2022-01-10" in html                # and its date
+    assert "not a prediction" in html          # framing survives
+
+
+def test_reference_page_refuses_to_write_into_docs(tmp_path):
+    import scripts.build_reference_dashboard as brd
+    with pytest.raises(ValueError, match="refusing to write"):
+        brd.build(_rates_toml(tmp_path / "rates.toml"),
+                  brd.DOCS_DIR / "index.html")
+
+
+def test_reference_page_errors_helpfully_without_a_rate_table(tmp_path):
+    import scripts.build_reference_dashboard as brd
+    with pytest.raises(FileNotFoundError, match="example.toml"):
+        brd.build(tmp_path / "absent.toml", tmp_path / "ref.html")
+
+
+def test_hub_refuses_to_write_into_docs():
+    import scripts.build_hub as bh
+    with pytest.raises(ValueError, match="refusing to write"):
+        bh.build(bh.DOCS_DIR / "hub.html")

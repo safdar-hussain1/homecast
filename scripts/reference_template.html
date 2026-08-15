@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<!-- HomeCast — designed and built by Safdar Hussain · github.com/safdar-hussain1/homecast -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HomeCast — Amaravathi rate reference</title>
+<meta name="description" content="A rate-based reference sheet for Amaravathi, Andhra Pradesh: published APCRDA and IGRS figures with their sources and dates. Not a prediction — this market has no listings dataset and no trained model.">
+<meta name="author" content="Safdar Hussain">
+<meta name="color-scheme" content="light dark">
+<meta name="robots" content="noindex">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%239a5407'/%3E%3Cg fill='%23fff'%3E%3Crect x='6' y='19' width='20' height='2.4' rx='1'/%3E%3Crect x='6' y='13' width='14' height='2.4' rx='1' opacity='.7'/%3E%3Crect x='6' y='7' width='9' height='2.4' rx='1' opacity='.45'/%3E%3C/g%3E%3C/svg%3E">
+<script>try{var t=localStorage.getItem('hc-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Sans:wdth,wght@75..100,400..700&display=swap" rel="stylesheet">
+<style>
+/* ══ HomeCast — Amaravathi rate reference ═══════════════════════════════
+   Same drawing-board system as the model dashboard, but deliberately a
+   DIFFERENT object: a stamped reference sheet, not a valuation slip.
+   Where the model page has a big confident price, this page has a range
+   with its provenance attached. Amber, not cobalt, is the lead accent —
+   this is a document to read carefully, not a product to trust blindly. */
+:root{
+  color-scheme: light;
+  --f-display:"Archivo", ui-sans-serif, system-ui, "Helvetica Neue", sans-serif;
+  --f-body:"Instrument Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono:"IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --plane:#e9e6df; --surface:#fbfaf7; --inset:#f2efe8; --slip:#ffffff;
+  --ink:#12100c; --ink-2:#514a3e; --ink-3:#7b7466;
+  --line:#d8d2c6; --hair:#e7e2d8; --ring:rgba(18,16,12,.10);
+
+  --accent:#8a4a06; --accent-soft:#f7ecdb;
+  --s1:#9a5407; --s2:#1747b8;
+  --warn:#8a3d0b; --warn-bg:#fbeede; --warn-line:#e0b483;
+  --stop:#8f1d1d; --stop-bg:#fbeaea; --stop-line:#e0a3a3;
+
+  --grid:rgba(18,16,12,.055);
+  --paper-op:.032;
+  --sh1:rgba(40,30,14,.08); --sh2:rgba(40,30,14,.22);
+  --e1:0 1px 2px var(--sh1);
+  --e2:0 1px 2px var(--sh1), 0 10px 26px -16px var(--sh2);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme: dark;
+    --plane:#0b0a08; --surface:#171512; --inset:#1e1b16; --slip:#1a1713;
+    --ink:#f2eee6; --ink-2:#b0a795; --ink-3:#7f7767;
+    --line:#332e26; --hair:#26221c; --ring:rgba(255,255,255,.12);
+    --accent:#e6a561; --accent-soft:#2a1f12;
+    --s1:#e0a35c; --s2:#6ea2f5;
+    --warn:#e0a35c; --warn-bg:#291f16; --warn-line:#5c4526;
+    --stop:#f08a8a; --stop-bg:#2b1717; --stop-line:#5e2b2b;
+    --grid:rgba(255,255,255,.045);
+    --paper-op:.055;
+    --sh1:rgba(0,0,0,.45); --sh2:rgba(0,0,0,.85);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --plane:#0b0a08; --surface:#171512; --inset:#1e1b16; --slip:#1a1713;
+  --ink:#f2eee6; --ink-2:#b0a795; --ink-3:#7f7767;
+  --line:#332e26; --hair:#26221c; --ring:rgba(255,255,255,.12);
+  --accent:#e6a561; --accent-soft:#2a1f12;
+  --s1:#e0a35c; --s2:#6ea2f5;
+  --warn:#e0a35c; --warn-bg:#291f16; --warn-line:#5c4526;
+  --stop:#f08a8a; --stop-bg:#2b1717; --stop-line:#5e2b2b;
+  --grid:rgba(255,255,255,.045);
+  --paper-op:.055;
+  --sh1:rgba(0,0,0,.45); --sh2:rgba(0,0,0,.85);
+}
+
+*{box-sizing:border-box}
+body,h1,h2,h3,p,table,dl,dd,figure{margin:0}
+body{
+  background:var(--plane); color:var(--ink); font-family:var(--f-body);
+  font-size:16px; line-height:1.55; -webkit-font-smoothing:antialiased;
+  background-image:linear-gradient(var(--grid) 1px, transparent 1px),
+                   linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size:34px 34px;
+}
+.wrap{width:100%; max-width:1180px; margin-inline:auto; padding-inline:clamp(16px,3.4vw,32px)}
+.mono{font-family:var(--f-mono)}
+.eyebrow{font-family:var(--f-mono); font-size:12.5px; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--ink-3)}
+h1{font-family:var(--f-display); font-variation-settings:"wdth" 112,"wght" 760;
+  font-size:clamp(1.9rem,4vw,2.9rem); line-height:1.04; letter-spacing:-.02em; margin:8px 0 12px}
+h2{font-family:var(--f-display); font-variation-settings:"wdth" 108,"wght" 700;
+  font-size:clamp(1.15rem,2vw,1.5rem); letter-spacing:-.01em}
+.lede{color:var(--ink-2); max-width:70ch; font-size:16.5px}
+
+/* stamped banner — the first thing read */
+.stamp{
+  border:1.5px solid var(--warn-line); background:var(--warn-bg); color:var(--warn);
+  border-radius:12px; padding:16px 18px; margin:22px 0 0; box-shadow:var(--e1);
+  display:grid; grid-template-columns:auto 1fr; gap:14px; align-items:start;
+}
+.stamp .mark{
+  font-family:var(--f-mono); font-size:11px; letter-spacing:.14em; font-weight:600;
+  border:1.5px solid currentColor; border-radius:6px; padding:5px 8px;
+  transform:rotate(-3deg); white-space:nowrap; line-height:1.15; text-align:center;
+}
+.stamp p{color:var(--warn); font-size:14.5px; line-height:1.5}
+.stamp strong{font-weight:700}
+
+header.top{border-bottom:1px solid var(--line); background:var(--surface)}
+header.top .wrap{display:flex; align-items:center; gap:14px; min-height:56px; flex-wrap:wrap}
+.brand{font-family:var(--f-display); font-variation-settings:"wdth" 112,"wght" 780;
+  font-size:17px; letter-spacing:-.02em}
+.brand span{font-family:var(--f-mono); font-variation-settings:normal; font-weight:500;
+  font-size:11.5px; letter-spacing:.13em; color:var(--ink-3); margin-left:9px}
+.tbtn{margin-left:auto; font-family:var(--f-mono); font-size:12.5px; cursor:pointer;
+  border:1px solid var(--line); background:var(--surface); color:var(--ink-2);
+  border-radius:999px; padding:6px 13px}
+.tbtn:hover{border-color:var(--accent); color:var(--accent)}
+
+section{padding-block:clamp(26px,3.2vw,42px)}
+section + section{border-top:1px solid var(--hair)}
+.sec-head{display:flex; align-items:baseline; gap:13px; flex-wrap:wrap; margin-bottom:5px}
+.sec-note{color:var(--ink-2); max-width:74ch; margin-bottom:20px; font-size:15px}
+
+.cols{display:grid; grid-template-columns:minmax(0,.95fr) minmax(340px,1.05fr); gap:26px; align-items:start}
+@media (max-width:960px){ .cols{grid-template-columns:1fr} }
+
+.panel{background:var(--surface); border:1px solid var(--line); border-radius:14px;
+  padding:18px; box-shadow:var(--e1)}
+.f{display:flex; flex-direction:column; gap:6px; margin-bottom:14px}
+.flabel{font-family:var(--f-mono); font-size:11.5px; letter-spacing:.1em;
+  text-transform:uppercase; color:var(--ink-3)}
+select,input[type=number]{
+  font:inherit; font-size:15px; color:var(--ink); background:var(--inset);
+  border:1px solid var(--line); border-radius:9px; padding:9px 11px; width:100%;
+}
+select:focus-visible,input:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
+.scale{display:flex; justify-content:space-between; font-family:var(--f-mono);
+  font-size:11.5px; color:var(--ink-3)}
+
+/* the reference sheet — a stamped document, NOT a valuation slip */
+.sheet{position:relative; background:var(--slip); border:1px solid var(--line);
+  border-radius:14px; box-shadow:var(--e2); overflow:hidden}
+.sheet::before{content:""; position:absolute; inset:0; pointer-events:none;
+  opacity:var(--paper-op); mix-blend-mode:multiply;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.82' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E")}
+.sheet-top{padding:15px 20px 12px; border-bottom:2px solid var(--ink);
+  display:flex; justify-content:space-between; align-items:baseline; gap:10px; flex-wrap:wrap}
+.sheet-title{font-family:var(--f-mono); font-size:12px; letter-spacing:.14em;
+  text-transform:uppercase; font-weight:600}
+.sheet-org{font-family:var(--f-mono); font-size:11.5px; color:var(--ink-3)}
+.sheet-body{padding:16px 20px 18px}
+
+.rangebox{border:1px dashed var(--line); border-radius:11px; background:var(--inset);
+  padding:14px 16px; margin-bottom:16px}
+.rangebox .cap{font-family:var(--f-mono); font-size:11px; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--ink-3); margin-bottom:4px}
+.range{font-family:var(--f-display); font-variation-settings:"wdth" 108,"wght" 720;
+  font-size:clamp(1.6rem,3.4vw,2.3rem); letter-spacing:-.02em; line-height:1.1;
+  font-variant-numeric:tabular-nums}
+.range .cur{font-size:.55em; color:var(--ink-2); margin-right:.12em}
+.range .to{color:var(--ink-3); font-size:.62em; margin:0 .18em; font-variation-settings:"wght" 500}
+.rangebox .sub{font-size:13.5px; color:var(--ink-2); margin-top:7px}
+
+.li{border-top:1px solid var(--hair); padding:11px 0}
+.li:first-of-type{border-top:0}
+.li-head{display:flex; justify-content:space-between; gap:12px; align-items:baseline}
+.li-rate{font-family:var(--f-mono); font-size:14px; font-weight:600; white-space:nowrap;
+  font-variant-numeric:tabular-nums}
+.li-out{font-family:var(--f-mono); font-size:14px; color:var(--accent); font-weight:600;
+  white-space:nowrap; font-variant-numeric:tabular-nums}
+.li-src{font-size:13px; color:var(--ink-2); margin-top:3px; line-height:1.45}
+.li-date{font-family:var(--f-mono); font-size:11.5px; color:var(--ink-3); margin-top:3px}
+.li-math{font-family:var(--f-mono); font-size:11.5px; color:var(--ink-3); margin-top:4px}
+
+.refuse{border:1.5px solid var(--stop-line); background:var(--stop-bg); color:var(--stop);
+  border-radius:11px; padding:14px 16px; font-size:14.5px; line-height:1.5}
+.refuse strong{font-weight:700}
+
+.notes{display:grid; grid-template-columns:repeat(auto-fit,minmax(290px,1fr)); gap:14px}
+.note{background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:15px 16px}
+.note h3{font-family:var(--f-mono); font-size:11.5px; letter-spacing:.11em;
+  text-transform:uppercase; color:var(--accent); margin-bottom:7px; font-weight:600}
+.note p{font-size:14px; color:var(--ink-2); line-height:1.55}
+.note strong{color:var(--ink); font-weight:600}
+
+table.rates{width:100%; border-collapse:collapse; font-size:14px}
+table.rates th{font-family:var(--f-mono); font-size:11px; letter-spacing:.1em;
+  text-transform:uppercase; color:var(--ink-3); text-align:left; font-weight:500;
+  padding:9px 10px; border-bottom:1px solid var(--line)}
+table.rates td{padding:10px; border-bottom:1px solid var(--hair); vertical-align:top}
+table.rates td.num{font-family:var(--f-mono); text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap}
+.scrollx{overflow-x:auto}
+
+footer{border-top:1px solid var(--line); background:var(--surface);
+  padding-block:20px; font-size:13.5px; color:var(--ink-2)}
+footer .wrap{display:flex; gap:14px; flex-wrap:wrap; align-items:center}
+footer a{color:var(--accent)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important; animation:none!important}}
+</style>
+</head>
+<body>
+
+<header class="top"><div class="wrap">
+  <div class="brand">HomeCast<span>RATE REFERENCE</span></div>
+  <button class="tbtn" id="theme" type="button">Theme</button>
+</div></header>
+
+<section id="intro"><div class="wrap">
+  <p class="eyebrow" id="eyebrow">Amaravathi, Andhra Pradesh</p>
+  <h1>Published rates.<br>Not a prediction.</h1>
+  <p class="lede">Amaravathi has single-digit live listings and no usable dataset, so
+  HomeCast does not train a model for it — doing so would be fabrication. This page
+  looks up government-published rates instead, shows every source with its own date,
+  and prints the arithmetic in full.</p>
+
+  <div class="stamp">
+    <div class="mark">RATES<br>PRE-2025</div>
+    <p><strong>Every rate here predates 2025.</strong> The Andhra Pradesh Revenue Minister
+    confirmed on 2025-01-29 that the Amaravati capital region — Thullur, Mangalagiri and
+    Tadepalli mandals — was <strong>excluded</strong> from the February 2025 statewide
+    market-value revision, so official guideline values there were left unrevised. Treat
+    every figure below as an official position of its stated date, not a current market price.</p>
+  </div>
+</div></section>
+
+<section id="lookup"><div class="wrap">
+  <div class="sec-head"><p class="eyebrow">Lookup</p><h2>Price a plot from published rates</h2></div>
+  <p class="sec-note">Pick a zone and a category, enter an area, and the page multiplies each
+  published rate by that area. The output is a <em>span across sources</em> — arithmetic, not a
+  statistical confidence interval.</p>
+
+  <div class="cols">
+    <form class="panel" id="form" autocomplete="off" onsubmit="return false">
+      <div class="f">
+        <label class="flabel" for="i-zone">Zone</label>
+        <select id="i-zone"></select>
+      </div>
+      <div class="f">
+        <label class="flabel" for="i-type">Category</label>
+        <select id="i-type"></select>
+      </div>
+      <div class="f">
+        <label class="flabel" for="i-area">Area (sq.ft.)</label>
+        <input type="number" id="i-area" value="2178" min="100" max="500000" step="1" inputmode="numeric">
+        <div class="scale"><span>1 sq.yd = 9 sq.ft.</span><span>1 acre = 43,560 sq.ft.</span></div>
+      </div>
+      <div id="refuse" class="refuse" hidden></div>
+    </form>
+
+    <div class="sheet" id="sheet">
+      <div class="sheet-top">
+        <span class="sheet-title">Rate reference sheet</span>
+        <span class="sheet-org mono" id="sheet-org">AMARAVATHI · AP</span>
+      </div>
+      <div class="sheet-body">
+        <div class="rangebox">
+          <div class="cap">Reference range across sources</div>
+          <div class="range" id="range">
+            <span class="cur">₹</span><span id="lo">—</span><span class="to">–</span><span id="hi">—</span>
+            <span class="cur" style="margin-left:.14em">Cr</span>
+          </div>
+          <p class="sub" id="range-sub">The span across the rates below. Arithmetic, not a
+          statistical confidence interval — this is a rate-based reference, not a prediction.</p>
+        </div>
+        <div id="items"></div>
+      </div>
+    </div>
+  </div>
+</div></section>
+
+<section id="table"><div class="wrap">
+  <div class="sec-head"><p class="eyebrow">The table</p><h2>Every rate on file</h2></div>
+  <p class="sec-note">This is the whole dataset for Amaravathi — three published figures.
+  There is deliberately no apartment rate; see below.</p>
+  <div class="panel scrollx">
+    <table class="rates"><thead><tr>
+      <th>Zone</th><th>Category</th><th class="num">₹ / sq.ft.</th><th>Source</th><th class="num">Dated</th>
+    </tr></thead><tbody id="rates-body"></tbody></table>
+  </div>
+</div></section>
+
+<section id="limits"><div class="wrap">
+  <div class="sec-head"><p class="eyebrow">Read before using</p><h2>What this cannot tell you</h2></div>
+  <div class="notes">
+    <div class="note">
+      <h3>No apartment rate exists</h3>
+      <p>Only <strong>plot</strong> and <strong>land</strong> rates could be verified. No official
+      ₹/sq.ft. figure for a <strong>flat</strong> in the capital region was obtainable, so this page
+      refuses to price one rather than inventing a number.</p>
+    </div>
+    <div class="note">
+      <h3>Not Amravati, Maharashtra</h3>
+      <p>Amaravathi, Andhra Pradesh is a planned capital under construction. <strong>Amravati,
+      Maharashtra</strong> is a different, unrelated city with a near-identical name and far more
+      listings — mixing the two is the most common way this market gets priced wrongly.</p>
+    </div>
+    <div class="note">
+      <h3>Rates, not transactions</h3>
+      <p>These are administratively fixed prices and auction upset prices, not a record of what
+      buyers actually paid. Real transactions can sit well above or below a notified rate.</p>
+    </div>
+    <div class="note">
+      <h3>How to refresh them</h3>
+      <p>IGRS: <strong>registration.ap.gov.in</strong> → property value search → Guntur district →
+      Thullur / Mangalagiri / Tadepalli mandal → village. APCRDA notifications and standing orders:
+      <strong>crda.ap.gov.in</strong>. Add each with its own source and date.</p>
+    </div>
+  </div>
+  <div class="stamp" id="stale" hidden>
+    <div class="mark">TABLE<br>STALE</div>
+    <p id="stale-text"></p>
+  </div>
+</div></section>
+
+<footer><div class="wrap">
+  <span>Built by Safdar Hussain</span>
+  <span class="mono" id="foot-meta"></span>
+  <a href="https://github.com/safdar-hussain1/homecast">github.com/safdar-hussain1/homecast</a>
+</div></footer>
+
+<script>
+const DATA = /*__DATA__*/;
+
+/* Mirror of homecast.reference.estimate(): rate x area / 1e7 -> crore.
+   A test asserts this page and the Python CLI agree. Keep them identical. */
+function priceCr(ratePerSqft, areaSqft){ return ratePerSqft * areaSqft / 1e7; }
+
+const $ = id => document.getElementById(id);
+const IN = n => n.toLocaleString('en-IN');
+const cr = v => v.toFixed(2);
+
+const ZONES = [...new Set(DATA.entries.map(e => e.zone))];
+const typesFor = z => [...new Set(DATA.entries.filter(e => e.zone === z).map(e => e.property_type))];
+
+function fillZones(){
+  $('i-zone').innerHTML = ZONES.map(z => `<option>${z}</option>`).join('');
+  fillTypes();
+}
+function fillTypes(){
+  const t = typesFor($('i-zone').value);
+  $('i-type').innerHTML = t.map(x => `<option>${x}</option>`).join('');
+}
+
+function render(){
+  const zone = $('i-zone').value, ptype = $('i-type').value;
+  const area = Math.max(1, Number($('i-area').value) || 0);
+  const rows = DATA.entries.filter(e => e.zone === zone && e.property_type === ptype);
+
+  const refuse = $('refuse');
+  if (!rows.length){
+    refuse.hidden = false;
+    refuse.innerHTML = `<strong>No rate on file</strong> for ${ptype} in ${zone}. `
+      + `This page will not estimate a category it has no published rate for.`;
+    $('lo').textContent = '—'; $('hi').textContent = '—';
+    $('items').innerHTML = '';
+    return;
+  }
+  refuse.hidden = true;
+
+  let lo = Infinity, hi = -Infinity;
+  const parts = rows.map(e => {
+    const a = priceCr(e.rate_low_per_sqft, area), b = priceCr(e.rate_high_per_sqft, area);
+    lo = Math.min(lo, a); hi = Math.max(hi, b);
+    return `<div class="li">
+      <div class="li-head">
+        <span class="li-rate">₹${IN(Math.round(e.rate_low_per_sqft))}${
+          e.rate_high_per_sqft !== e.rate_low_per_sqft ? '–' + IN(Math.round(e.rate_high_per_sqft)) : ''
+        }/sq.ft.</span>
+        <span class="li-out">₹${cr(a)}${b !== a ? '–' + cr(b) : ''} Cr</span>
+      </div>
+      <div class="li-src">${e.source}</div>
+      <div class="li-date">dated ${e.source_date}</div>
+      <div class="li-math">${IN(Math.round(e.rate_low_per_sqft))} × ${IN(area)} sq.ft. ÷ 10⁷</div>
+    </div>`;
+  });
+
+  $('lo').textContent = cr(lo);
+  $('hi').textContent = cr(hi);
+  $('items').innerHTML = parts.join('');
+}
+
+function fillTable(){
+  $('rates-body').innerHTML = DATA.entries.map(e => `<tr>
+    <td>${e.zone}</td><td>${e.property_type}</td>
+    <td class="num">₹${IN(Math.round(e.rate_low_per_sqft))}</td>
+    <td>${e.source}</td><td class="num">${e.source_date}</td>
+  </tr>`).join('');
+}
+
+function staleness(){
+  const days = Math.floor((Date.now() - Date.parse(DATA.last_updated)) / 86400000);
+  if (days > DATA.staleness_days){
+    $('stale').hidden = false;
+    $('stale-text').innerHTML = `<strong>This rate table is ${days} days old</strong> `
+      + `(last updated ${DATA.last_updated}), past the ${DATA.staleness_days}-day threshold. `
+      + `Verify against current APCRDA / IGRS AP figures before relying on it.`;
+  }
+}
+
+$('i-zone').addEventListener('change', () => { fillTypes(); render(); });
+$('i-type').addEventListener('change', render);
+$('i-area').addEventListener('input', render);
+$('theme').addEventListener('click', () => {
+  const cur = document.documentElement.getAttribute('data-theme')
+    || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  const next = cur === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  try { localStorage.setItem('hc-theme', next); } catch(e){}
+});
+
+$('eyebrow').textContent = DATA.city_display;
+$('foot-meta').textContent = `${DATA.entries.length} published rates · table ${DATA.last_updated} · no model`;
+fillZones(); fillTable(); render(); staleness();
+
+/* headless parity hook: three canned lookups into document.title */
+if (/[?&]selftest=1\b/.test(location.search)){
+  try {
+    const q = [
+      ['Nowluru Township (Mangalagiri mandal)', 'plot', 2178],
+      ['Amaravati capital region (capital-wide)', 'land', 43560],
+      ['Nowluru Township (Mangalagiri mandal)', 'plot', 9000],
+    ];
+    document.title = 'SELFTEST ' + q.map(([z, t, a], i) => {
+      const rows = DATA.entries.filter(e => e.zone === z && e.property_type === t);
+      const lo = Math.min(...rows.map(e => priceCr(e.rate_low_per_sqft, a)));
+      const hi = Math.max(...rows.map(e => priceCr(e.rate_high_per_sqft, a)));
+      return 'ABC'[i] + '=' + lo.toFixed(2) + '-' + hi.toFixed(2);
+    }).join(' ');
+  } catch (err) { document.title = 'SELFTEST FAILED ' + err; }
+}
+
+console.log('HomeCast rate reference — built by Safdar Hussain · github.com/safdar-hussain1/homecast');
+</script>
+</body>
+</html>
