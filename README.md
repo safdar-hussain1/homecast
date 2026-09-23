@@ -1,6 +1,6 @@
 # HomeCast
 
-![tests](https://github.com/safdar-hussain1/homecast/actions/workflows/tests.yml/badge.svg)
+[![tests](https://github.com/safdar-hussain1/homecast/actions/workflows/tests.yml/badge.svg)](https://github.com/safdar-hussain1/homecast/actions/workflows/tests.yml)
 
 Residential property price intelligence for Indian cities. A gradient-boosted
 valuation model trained on real listing data, shipped as an installable
