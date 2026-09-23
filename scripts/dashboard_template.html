@@ -1463,12 +1463,15 @@ const el = {
 };
 /* The ?selftest=1 hook writes its results into document.title, and it runs
    BEFORE this line. Overwriting it here would silently blank the only
-   channel the CLI-vs-browser parity check reads. */
-if (!SELFTEST_ACTIVE) document.title = 'HomeCast — ' + DATA.city + ' property valuation';
+   channel the CLI-vs-browser parity check reads.
+   For the public city these two strings must equal the <head>'s <title> and
+   meta description exactly (tests/test_seo.py checks it), because search
+   engines that run this script index what it writes. */
+if (!SELFTEST_ACTIVE) document.title = 'HomeCast — Property Price Prediction for ' + DATA.city + ', India';
 const metaDesc = document.querySelector('meta[name="description"]');
 if (metaDesc) metaDesc.setAttribute('content',
   'Describe a ' + DATA.city + ' property and get a price estimate, a confidence '
-  + 'band, and the comparable listings behind it. The model runs in the page.');
+  + 'band and the comparable listings to check it against. The model runs in your browser.');
 
 /* Read a control that may have been removed above. */
 const val = (node, fallback) => (node && node.value !== '') ? node.value : fallback;
