@@ -205,7 +205,7 @@ def test_non_positive_price_is_rejected(tmp_path):
         ingest_city(raw, cfg)
 
 
-# --- Amravati, Maharashtra contamination guard (Task 7) -----------------
+# --- Amravati, Maharashtra contamination guard ---------------------------
 
 def test_ingest_warns_on_maharashtra_localities_for_amaravathi_ap(tmp_path):
     ap_config = GOOD_CONFIG.replace('city_key = "testcity"', 'city_key = "amaravathi_ap"')
