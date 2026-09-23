@@ -26,3 +26,6 @@ models/*/model.joblib
 # that cannot be published in this public repo. Nothing under here may ever
 # be committed -- see tests/test_private.py for the adversarial guard.
 private/
+
+# setuptools build output
+build/
