@@ -29,7 +29,7 @@ entirely in the visitor's browser.
 
 ## Quickstart
 
-Requires Python 3.10+.
+Requires Python 3.11+ (the city configs are read with `tomllib`).
 
 ```bash
 git clone https://github.com/safdar-hussain1/homecast.git
