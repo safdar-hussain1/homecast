@@ -134,7 +134,7 @@ homecast reference                         # list the zones a rate table covers
 homecast reference --zone "<zone>" --type plot --area 2178
 
 # --- tests -------------------------------------------------------------
-pytest -q                                  # 277 tests
+pytest -q                                  # 299 passed
 pytest -q tests/test_model.py              # one file
 ```
 
@@ -303,7 +303,7 @@ src/homecast/
   reference.py    # rate-based reference calculator (for markets with no listing data)
   cli.py          # `homecast` command line: clean, train, evaluate, predict, ingest, export-dashboard
   plotting.py     # shared plot styling for the notebooks
-tests/            # 277 tests covering cities, cleaning, features, model, valuation, export, CLI, ingestion, the reference calculator, and the private/public boundary
+tests/            # 299 tests covering cities, cleaning, features, model, valuation, export, CLI, ingestion, the reference calculator, the private/public boundary, and the dashboard page's search and link-preview tags
 notebooks/
   gurgaon_real_estate_eda.ipynb   # exploratory analysis, market findings
   valuation_model.ipynb           # model development, CV, error analysis
@@ -317,6 +317,8 @@ models/gurgaon/
   metrics.json    # CV metrics vs both baselines, both society-known and society-unknown
   model.joblib    # trained sklearn model (gitignored; regenerate with `homecast train`)
 docs/index.html    # the built dashboard, served by GitHub Pages
+docs/og-image.png  # the preview image shown when the page link is shared (1200x630)
+docs/sitemap.xml   # for search indexing
 reports/figures/    # exported charts (EDA + model diagnostics)
 reports/MODEL_CARD.md
 pyproject.toml, requirements.txt, LICENSE
