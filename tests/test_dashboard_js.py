@@ -283,3 +283,170 @@ def test_an_unrecognised_basis_degrades_to_the_neutral_noun(tmp_path):
     "Built-up area" -- the neutral noun is the safe answer."""
     js = _extract_area_label_js({"area_basis": "some_future_basis"})
     assert _eval_js(js, "AREA_LABEL", tmp_path) == "Area"
+
+
+# --- What moved the price ----------------------------------------------------
+#
+# The page splits every estimate into "what moved the price" by walking each
+# tree with the home and crediting each split's change in node value to the
+# feature that split asked about. That is only worth showing if the parts add
+# back up to the very price on the page, so these run the shipping explain()
+# and explainGroups() under Node against real rows.
+
+def _run_explanations_under_node(js_block: str, queries: list[dict], tmp_path: Path) -> list[dict]:
+    driver = js_block + """
+const fs = require('fs');
+const queries = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const sum = a => a.reduce((s, v) => s + v, 0);
+process.stdout.write(JSON.stringify(queries.map(q => {
+  const x = featureRow(q);
+  const e = explain(DATA.model, x);
+  const g = explainGroups(q);
+  return {log: Math.log(predict(DATA.model, x)),
+          parts: e.base + sum(e.parts),
+          groups: g.base + sum(Object.values(g.groups)),
+          keys: Object.keys(g.groups)};
+})));
+"""
+    script_path = tmp_path / "explain_driver.js"
+    queries_path = tmp_path / "explain_queries.json"
+    script_path.write_text(driver, encoding="utf-8")
+    queries_path.write_text(json.dumps(queries), encoding="utf-8")
+    result = subprocess.run([NODE, str(script_path), str(queries_path)],
+                            capture_output=True, text=True, timeout=120)
+    assert result.returncode == 0, f"node failed:\n{result.stderr}"
+    return json.loads(result.stdout)
+
+
+@pytest.mark.skipif(NODE is None, reason=_skip_reason)
+def test_what_moved_the_price_adds_up_to_the_estimate(tmp_path):
+    payload = json.loads(MODEL_JSON.read_text())
+    df = pd.read_csv(CLEAN_CSV).sample(n=40, random_state=3).reset_index(drop=True)
+    queries = []
+    for _, row in df.iterrows():
+        q = _query_from_row(row)
+        # the listing's own society, none (the page's default), and a name the
+        # model has never seen: the last two fold the society share into location
+        queries += [q, {**q, "society": None}, {**q, "society": "not a society anyone listed"}]
+    out = _run_explanations_under_node(_extract_feature_row_js(payload), queries, tmp_path)
+    assert len(out) == len(queries)
+    for row in out:
+        assert abs(row["parts"] - row["log"]) < 1e-9, row
+        assert abs(row["groups"] - row["log"]) < 1e-9, row
+
+
+def _toy_trees(n_features: int, seed: int = 4) -> list[dict]:
+    """Small depth-2 trees that split only on features 0..n_features-1, in
+    the exported array layout. A reduced payload keeps Gurgaon's thirteen-
+    feature trees, whose split indices run past a shorter feature_order, so
+    it cannot stand in for a model that was trained on that feature set."""
+    rng = np.random.default_rng(seed)
+    trees = []
+    for _ in range(25):
+        trees.append({
+            "f": [int(f) for f in rng.integers(0, n_features, 3)] + [-2] * 4,
+            "t": [float(t) for t in rng.uniform(-1, 2500, 3)] + [-2.0] * 4,
+            "l": [1, 3, 5, -1, -1, -1, -1],
+            "r": [2, 4, 6, -1, -1, -1, -1],
+            "v": [float(v) for v in rng.normal(0, .3, 7)],
+        })
+    return trees
+
+
+@pytest.mark.skipif(NODE is None, reason=_skip_reason)
+def test_what_moved_the_price_adds_up_for_a_city_with_the_optional_features(base_payload, tmp_path):
+    keep = ["area", "bedrooms", "sector_ppsf", "sector_ppsf_mean",
+            "sector_ppsf_std", "sector_count", "amenity_count", "is_resale"]
+    payload = _reduced_payload(base_payload, keep,
+                               ranges={"area": [200.0, 5000.0], "bedrooms": [1.0, 6.0]})
+    payload["model"]["trees"] = _toy_trees(len(keep))
+    sector = next(k for k in payload["encodings"]["sector_ppsf"] if k != "__global__")
+    queries = [{"sector": sector, "area": 1200.0, "bedrooms": 3.0, "amenity": 7, "resale": "1"},
+               {"sector": sector, "area": 800.0, "bedrooms": 2.0}]
+    out = _run_explanations_under_node(_extract_feature_row_js(payload), queries, tmp_path)
+    for row in out:
+        assert abs(row["groups"] - row["log"]) < 1e-9, row
+        assert set(row["keys"]) <= {"location", "size", "rooms", "fitout", "age"}
+
+
+@pytest.mark.skipif(NODE is None, reason=_skip_reason)
+def test_a_named_society_gets_its_own_share_and_no_society_counts_as_location(base_payload, tmp_path):
+    """Without a known society, society_ppsf is the sector's own rate standing
+    in (see featureRow), so its share belongs to location, not to a society
+    the visitor never named."""
+    society = next(k for k in base_payload["encodings"]["society_ppsf"] if k != "__global__")
+    js = _extract_feature_row_js(base_payload)
+    q = ("{sector:'sector 65', type:'flat', bedrooms:3, bathrooms:3, area:1800, "
+         "furnishing:'semi-furnished', luxury:60, age:null, balcony:null, society:%s}")
+    keys = "Object.keys(explainGroups(" + q + ").groups).sort().join(',')"
+    named = _eval_js(js, keys % json.dumps(society), tmp_path).split(",")
+    unnamed = _eval_js(js, keys % "null", tmp_path).split(",")
+    unknown = _eval_js(js, keys % json.dumps("not a society anyone listed"), tmp_path).split(",")
+    assert "society" in named and "location" in named
+    assert "society" not in unnamed and "location" in unnamed
+    assert "society" not in unknown
+
+
+@pytest.mark.skipif(NODE is None, reason=_skip_reason)
+def test_every_feature_the_page_can_build_has_a_plain_language_group(base_payload, tmp_path):
+    js = _extract_feature_row_js(base_payload)
+    out = _eval_js(js, "['amenity_count', 'is_resale'].concat(DATA.feature_order)"
+                       ".filter(k => !(k in FEATURE_GROUP)).join(',')", tmp_path)
+    assert out == "", f"features with no group: {out}"
+
+
+@pytest.mark.skipif(NODE is None, reason=_skip_reason)
+def test_each_split_is_credited_to_the_feature_it_asked_about(base_payload, tmp_path):
+    """Adding up is not enough: any credit rule that moves value between
+    features still sums to the price. One hand-built tree pins the exact
+    parts. It asks about area at the root (value 0.1) and bedrooms below it
+    (value 0.4); the home goes left twice and lands on a leaf worth 0.9. With
+    a learning rate of 0.5, area earns 0.5 * (0.4 - 0.1) and bedrooms
+    0.5 * (0.9 - 0.4), and the base is init plus 0.5 * 0.1."""
+    payload = json.loads(json.dumps(base_payload))
+    order = payload["feature_order"]
+    a, b = order.index("area"), order.index("bedrooms")
+    payload["model"] = {"init": 0.3, "learning_rate": 0.5, "trees": [{
+        "f": [a, b, -2, -2, -2], "t": [1000.0, 2.5, -2.0, -2.0, -2.0],
+        "l": [1, 3, -1, -1, -1], "r": [2, 4, -1, -1, -1],
+        "v": [0.1, 0.4, -0.2, 0.9, 0.7]}]}
+    js = _extract_feature_row_js(payload)
+    q = ("{sector:'sector 65', type:'flat', bedrooms:2, bathrooms:2, area:800, "
+         "furnishing:'semi-furnished', luxury:60, age:null, balcony:null, society:null}")
+    parts = json.loads(_eval_js(js, "JSON.stringify(explain(DATA.model, featureRow(" + q + ")))", tmp_path))
+    expected = [0.0] * len(order)
+    expected[a], expected[b] = 0.15, 0.25
+    assert parts["base"] == pytest.approx(0.35, abs=1e-12)
+    assert parts["parts"] == pytest.approx(expected, abs=1e-12)
+    groups = json.loads(_eval_js(js, "JSON.stringify(explainGroups(" + q + "))", tmp_path))
+    assert groups["groups"]["size"] == pytest.approx(0.15, abs=1e-12)
+    assert groups["groups"]["rooms"] == pytest.approx(0.25, abs=1e-12)
+    assert sum(groups["groups"].values()) == pytest.approx(0.40, abs=1e-12)
+
+
+@pytest.mark.skipif(NODE is None, reason=_skip_reason)
+def test_plain_language_groups_are_the_ones_the_page_shows(base_payload, tmp_path):
+    """The rows the page prints ("Size", "Rooms", ...) are only true if each
+    feature lands in the right one."""
+    js = _extract_feature_row_js(base_payload)
+    got = json.loads(_eval_js(js, "JSON.stringify(FEATURE_GROUP)", tmp_path))
+    assert got == {
+        "area": "size", "bedrooms": "rooms", "bathrooms": "rooms", "balcony_code": "rooms",
+        "is_house": "type", "furnishing_code": "fitout", "luxury_score": "fitout",
+        "amenity_count": "fitout", "age_code": "age", "is_resale": "age",
+        "sector_ppsf": "location", "sector_ppsf_mean": "location",
+        "sector_ppsf_std": "location", "sector_count": "location", "society_ppsf": "society"}
+
+
+@pytest.mark.skipif(NODE is None, reason=_skip_reason)
+@pytest.mark.parametrize("name", ["constructor", "toString", "__proto__", "hasOwnProperty"])
+def test_a_typed_javascript_builtin_is_not_a_society(base_payload, name, tmp_path):
+    """The society box is free text. A name that exists on every JavaScript
+    object must be treated like any unknown society (the sector's rate),
+    exactly as Python's dictionary lookup treats it."""
+    js = _extract_feature_row_js(base_payload)
+    q = ("{sector:'sector 65', type:'flat', bedrooms:3, bathrooms:3, area:1800, "
+         "furnishing:'semi-furnished', luxury:60, age:null, balcony:null, society:%s}")
+    typed = _eval_js(js, "JSON.stringify(featureRow(" + q % json.dumps(name) + "))", tmp_path)
+    blank = _eval_js(js, "JSON.stringify(featureRow(" + q % "null" + "))", tmp_path)
+    assert typed == blank

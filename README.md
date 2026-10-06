@@ -22,6 +22,16 @@ entirely in the visitor's browser.
   dashboard export), `evaluate` (cross-validated metrics only, no artifacts
   written), `predict` (price a single property), and `export-dashboard`
   (regenerate the browser-side model file from an already-trained model).
+- **Live page** — the same model runs in the visitor's browser. Pick a sector,
+  flat or house, bedrooms and area, and it prices the home, shows a fair range
+  with the listings in that sector closest in size marked on it (from a
+  400-listing sample that ships with the page), and breaks the price into what
+  moved it (location, society, size, type, rooms, fit-out, age), read straight
+  from the trees: every split's change in value is credited to the detail it
+  asked about, and the parts add back up to the estimate exactly (tested). The
+  sector picker doubles as a skyline in which each tower is a sector, as tall
+  as its median price per sq.ft.; the full metrics sit in a second view,
+  `#measurements`.
 - **Per-city pipeline** — every city is a `City` entry in a small registry
   (`src/homecast/cities.py`) pointing at its raw CSV, cleaned CSV, and model
   directory, plus a cleaning function registered in `PIPELINES`. Gurgaon is
@@ -134,7 +144,7 @@ homecast reference                         # list the zones a rate table covers
 homecast reference --zone "<zone>" --type plot --area 2178
 
 # --- tests -------------------------------------------------------------
-pytest -q                                  # 299 passed
+pytest -q                                  # 314 passed
 pytest -q tests/test_model.py              # one file
 ```
 
@@ -304,13 +314,14 @@ src/homecast/
   reference.py    # rate-based reference calculator (for markets with no listing data)
   cli.py          # `homecast` command line: clean, train, evaluate, predict, ingest, export-dashboard
   plotting.py     # shared plot styling for the notebooks
-tests/            # 299 tests covering cities, cleaning, features, model, valuation, export, CLI, ingestion, the reference calculator, the private/public boundary, and the dashboard page's search and link-preview tags
+tests/            # 314 tests covering cities, cleaning, features, model, valuation, export, CLI, ingestion, the reference calculator, the private/public boundary, and the dashboard page (its search and link-preview tags, its price breakdown, and that it loads nothing from other hosts)
 notebooks/
   gurgaon_real_estate_eda.ipynb   # exploratory analysis, market findings
   valuation_model.ipynb           # model development, CV, error analysis
 scripts/
-  build_dashboard.py       # renders docs/index.html from dashboard_template.html + model.json
+  build_dashboard.py       # renders docs/index.html from dashboard_template.html + model.json + fonts/
   dashboard_template.html  # dashboard page template (model runs in-browser)
+  fonts/                   # the page's two typefaces, inlined at build time, with their licences
 config/
   amaravathi.rates.example.toml   # public, structurally-fake example rate table (see reference.py)
 models/gurgaon/
@@ -392,7 +403,11 @@ produced with:
 
 ## Data and licence
 
-The **code** in this repository is [MIT](LICENSE) licensed.
+The **code** in this repository is [MIT](LICENSE) licensed. The page embeds two
+typefaces under the SIL Open Font License 1.1, subset to Latin and the rupee
+sign: Eczar (Copyright 2014 The Eczar Project Authors) and Anek Latin
+(Copyright 2021 The Anek Project Authors); their licence texts are in
+`scripts/fonts/`.
 
 The **data** is not mine to license. `data/gurgaon/raw/gurgaon_properties.csv`
 is a snapshot of residential listings from a public Indian property-listing

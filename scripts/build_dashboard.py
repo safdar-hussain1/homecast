@@ -2,9 +2,12 @@
 """Inline a city's exported model payload into the dashboard template.
 
 The template carries a single `/*__DATA__*/` placeholder inside its script
-block; this script drops the minified `model.json` in its place. Nothing
+block; this script drops the minified `model.json` in its place. It also
+carries a single `/*__FONTS__*/` placeholder at the top of its stylesheet,
+which becomes `@font-face` rules with the two typefaces in `scripts/fonts/`
+inlined as base64, so the page loads nothing from anywhere else. Nothing
 else is templated, so the built page is always a byte-for-byte function of
-the template plus the payload.
+the template, the payload and those font files.
 
     python scripts/build_dashboard.py [--city gurgaon]
 
@@ -28,16 +31,27 @@ for a private city) first.
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import sys
 from pathlib import Path
 
 PLACEHOLDER = "/*__DATA__*/"
+FONTS_PLACEHOLDER = "/*__FONTS__*/"
 ROOT = Path(__file__).resolve().parent.parent
 TEMPLATE = ROOT / "scripts" / "dashboard_template.html"
+FONTS_DIR = ROOT / "scripts" / "fonts"
 DOCS_DIR = ROOT / "docs"
 PUBLIC_OUTPUT = DOCS_DIR / "index.html"
 PRIVATE_DASHBOARDS_DIR = ROOT / "private" / "dashboards"
+
+# Eczar sets the headline and the price, Anek Latin everything else. Both are
+# SIL OFL 1.1 (the licence texts sit beside the files and inside each font's
+# name table), subset to Latin plus the rupee sign and a few math marks.
+FONT_FACES = (
+    ("Eczar", "eczar-latin-wght.woff2", "500 800"),
+    ("Anek Latin", "anek-latin-wght.woff2", "400 700"),
+)
 
 sys.path.insert(0, str(ROOT / "src"))
 from homecast.cities import get_city  # noqa: E402  (after the sys.path insert, by design)
@@ -64,6 +78,21 @@ def _guard_private_city_never_writes_to_docs(city_key: str, output: Path) -> Non
         f"--output-style path: pass an output outside docs/ instead.")
 
 
+def font_faces_css(fonts_dir: Path = FONTS_DIR) -> str:
+    """`@font-face` rules with each typeface inlined as a base64 data URI."""
+    rules = []
+    for family, filename, weight in FONT_FACES:
+        path = fonts_dir / filename
+        if not path.exists():
+            raise FileNotFoundError(f"font file missing: {path}")
+        data = base64.b64encode(path.read_bytes()).decode("ascii")
+        rules.append(
+            "@font-face{font-family:'" + family + "';font-style:normal;font-weight:"
+            + weight + ";font-display:swap;src:url(data:font/woff2;base64,"
+            + data + ") format('woff2')}")
+    return "\n".join(rules)
+
+
 def build(city: str = "gurgaon",
           template: Path = TEMPLATE,
           output: Path | None = None) -> Path:
@@ -81,10 +110,11 @@ def build(city: str = "gurgaon",
             f"`homecast train --city {city}` (or `homecast export-dashboard`) first")
 
     html = template.read_text(encoding="utf-8")
-    if html.count(PLACEHOLDER) != 1:
-        raise ValueError(
-            f"expected exactly one {PLACEHOLDER} placeholder in {template}, "
-            f"found {html.count(PLACEHOLDER)}")
+    for marker in (PLACEHOLDER, FONTS_PLACEHOLDER):
+        if html.count(marker) != 1:
+            raise ValueError(
+                f"expected exactly one {marker} placeholder in {template}, "
+                f"found {html.count(marker)}")
 
     payload = json.loads(model_path.read_text(encoding="utf-8"))
     for key in ("city", "model", "feature_order", "feature_importances",
@@ -103,11 +133,14 @@ def build(city: str = "gurgaon",
             raise ValueError(f"{model_path} metrics is missing the '{metric_key}' key")
 
     data = json.dumps(payload, allow_nan=False, separators=(",", ":"))
-    if PLACEHOLDER in data:
-        raise ValueError("payload contains the placeholder text; refusing to build")
+    if PLACEHOLDER in data or FONTS_PLACEHOLDER in data:
+        raise ValueError("payload contains placeholder text; refusing to build")
 
+    # Fonts first: base64 has no '*' or '_', so the data placeholder cannot
+    # appear inside the inlined fonts and be replaced a second time.
+    page = html.replace(FONTS_PLACEHOLDER, font_faces_css()).replace(PLACEHOLDER, data)
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(html.replace(PLACEHOLDER, data), encoding="utf-8")
+    output.write_text(page, encoding="utf-8")
     return output
 
 
