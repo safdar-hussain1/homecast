@@ -32,8 +32,8 @@ ACCURATE_PARAMS = {"n_estimators": 100, "random_state": 7, "n_jobs": -1}
 # enough that a model trained only on rows where it's informative leans on it
 # far more than is safe for a real user, most of whom won't type in their
 # building name. Without this, the model silently assumes the caller always
-# knows their society; a user who doesn't got MAPE in the 30s, worse than the
-# pre-Phase-2 model this whole upgrade was meant to beat. Masking a fraction
+# knows their society; a user who doesn't got MAPE in the 30s, worse than a
+# simpler model with no society feature at all. Masking a fraction
 # of TRAINING rows to their sector-fallback value teaches the model to use
 # area/sector/etc. instead of over-relying on society, so it degrades
 # gracefully (a few points, not ~15) when the real prediction path can't

@@ -1,7 +1,7 @@
 """Rate-based reference calculator for Amaravathi, Andhra Pradesh.
 
-Amaravathi has single-digit live listings and no usable dataset (see the
-Phase 2 research note on city data availability) -- a trained model here
+Amaravathi has single-digit live listings and no usable dataset -- a
+trained model here
 would be fabrication dressed up as a prediction. This module is deliberately
 NOT a model: it looks up a manually-maintained rate table (APCRDA zone
 rates / IGRS AP registration values / Vijayawada-Guntur comparables), shows

@@ -1,12 +1,12 @@
-"""I5: the dashboard's in-browser feature builder has never been executed by
-this test suite -- everything else here tests the Python side only. This
+"""The dashboard's in-browser feature builder would otherwise never be
+executed by this test suite -- everything else here tests the Python side only. This
 extracts the actual `predict`/`featureRow` functions straight out of
 `scripts/dashboard_template.html` (not a hand-copied re-implementation, so it
 can't silently drift from what ships), runs them under Node against real
 sector/society encodings, and asserts the resulting feature vectors are
 bit-for-bit what `homecast.features.build_features` computes for the same
-rows. A regression in the JS-side society/sector fallback chain (the kind
-that caused the pre-Phase-2 global-median bug) would fail this test even
+rows. A regression in the JS-side society/sector fallback chain (such as
+falling back to one city-wide median) would fail this test even
 though it is invisible to every purely-Python test in this suite.
 """
 from __future__ import annotations
@@ -99,7 +99,7 @@ def test_dashboard_js_feature_row_matches_python_build_features():
     df = pd.read_csv(CLEAN_CSV)
     # A broad random sample of real rows, plus every row with a missing
     # society/age (rare in this dataset but exactly the fallback-chain edge
-    # case I5 exists to cover) so the comparison isn't limited to the common
+    # case this test exists to cover) so the comparison isn't limited to the common
     # "everything present" path.
     sample = pd.concat([
         df.sample(n=60, random_state=11),

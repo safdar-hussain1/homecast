@@ -105,7 +105,8 @@ feature it can't always get is a trap: measured directly, a model trained
 *without* any mitigation scored **17.8% MAPE** in cross-validation when every
 row supplied its real society at test time, but a real caller who didn't
 name one — the normal case — got the plain global-median fallback and
-**32.95% MAPE**, worse than the 21.4% this entire upgrade was meant to beat.
+**32.95% MAPE**, worse than the 21.4% of a simpler model with no society
+feature at all.
 
 The fix, implemented in `src/homecast/model.py`
 (`SOCIETY_MASK_FRACTION = 0.5`): during training, `society_ppsf` is
@@ -133,9 +134,9 @@ flattering nor the unflattering number is ever shown alone.
 
 `sklearn.ensemble.GradientBoostingRegressor`, with HomeCast's own project
 defaults (`DEFAULT_PARAMS` in `src/homecast/model.py` — not scikit-learn's
-library defaults). The Phase 2 values below were specified in the Phase 2
-plan before this evaluation ran and have not been changed since based on
-the CV results this card reports — they were not tuned against these numbers:
+library defaults). The values below were fixed before this evaluation ran
+and have not been changed since based on the CV results this card reports —
+they were not tuned against these numbers:
 
 ```
 n_estimators   = 500
@@ -239,9 +240,8 @@ is across the price range — see the quintile structure below.
 ## Error structure by price quintile
 
 Mean signed log-residual and MAPE by price quintile (society-given CV
-configuration; positive residual = model overestimates), recomputed this
-session against the current masked-training model — the previously-published
-figures were for the pre-Phase-2 model and are no longer accurate:
+configuration; positive residual = model overestimates), computed against the
+current masked-training model:
 
 | Quintile | Mean signed log-residual | MAPE |
 |---|---:|---:|
@@ -251,13 +251,10 @@ figures were for the pre-Phase-2 model and are no longer accurate:
 | Q4 | −0.016 | 17.9% |
 | Q5 (priciest) | −0.088 | 19.6% |
 
-The signed residual is still directionally monotonic — the model
+The signed residual is directionally monotonic — the model
 **overestimates the cheapest listings and underestimates the most
 expensive ones**, the classic pull toward the middle of a log-target
-regression — and Q1 remains the least accurate quintile in percentage terms.
-The absolute MAPE gap between Q1 and the middle quintiles narrowed
-considerably versus the pre-Phase-2 model, consistent with the overall MAPE
-improvement.
+regression — and Q1 is the least accurate quintile in percentage terms.
 
 ## Intended use
 
@@ -282,7 +279,7 @@ everything else below is secondary to them:
   and in the Indian residential market those routinely differ. Government
   property-registration data (stamp-duty / IGRS records) is transaction-level
   and dated, which would fix this limitation and the vintage one below at the
-  same time — it is the intended upgrade path, not yet built.
+  same time — it is the obvious next data source, not yet wired in.
 - **Single, undated snapshot — not today's market.** The dataset has **no
   date column at all**. It is one cross-sectional pull, first committed to
   this repository on **2025-08-23**. Every metric, band, and prediction in

@@ -3,7 +3,7 @@
 # example -- do not use these figures for any real estimate.
 #
 # Amaravathi, Andhra Pradesh has single-digit live listings and no usable
-# listings dataset (see the Phase 2 research note), so HomeCast cannot train
+# listings dataset, so HomeCast cannot train
 # a model there. Instead it looks up a manually-maintained rate table like
 # this one, sourced from:
 #

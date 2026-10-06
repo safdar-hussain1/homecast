@@ -171,8 +171,8 @@ a society is given.
 >    ask, not what a buyer would pay — in the Indian residential market those
 >    routinely differ. Government property-registration data (stamp-duty /
 >    IGRS records) would fix both of these — a dated, transaction-level
->    source — and is the intended upgrade path; nothing like that is wired up
->    yet.
+>    source — and is the obvious next data source; nothing like that is wired
+>    up yet.
 
 **The band**: each estimate ships with a range, not just a point. It's the
 10th–90th percentile of out-of-fold log-residuals (residual =
@@ -187,9 +187,9 @@ structure in Methodology.
 
 Model parameters: `n_estimators=500, max_depth=5, learning_rate=0.05,
 subsample=0.9, random_state=7`. These are HomeCast's own default parameters
-(not scikit-learn's). The Phase 2 values above were specified in the Phase 2
-plan *before* this evaluation ran, and have not been changed since based on
-the CV results this page reports — they were not tuned against these numbers.
+(not scikit-learn's). These values were fixed *before* this evaluation ran,
+and have not been changed since based on the CV results this page reports —
+they were not tuned against these numbers.
 
 ### Society masking
 
@@ -200,7 +200,8 @@ creates a trap: a model that learns to lean on society is only as good as its
 users' ability to supply one, and neither the CLI nor the dashboard requires
 it. Measured directly: with society unmitigated, a query that didn't name one
 got the plain global-median fallback and **32.95% MAPE** — worse than the
-21.4% this whole upgrade was meant to beat — even though the *same* model
+21.4% of a simpler model with no society feature at all — even though the
+*same* model
 scored **17.8% MAPE** in cross-validation when every row supplied its real
 society at test time. The gap between those two numbers is entirely an
 artefact of the model over-fitting to a feature that, for a normal user, is
